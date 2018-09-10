@@ -27,7 +27,7 @@ def create_ref_img_wf():
     from nipype import IdentityInterface
     from nipype.interfaces.utility.wrappers import Function
 
-    # Setup workflow.
+    ################## Setup workflow.
     ref_img_wf = pe.Workflow(name='make_ref_img')
     inputspec = pe.Node(IdentityInterface(
         fields=['subject_list', 'template']),
@@ -36,7 +36,7 @@ def create_ref_img_wf():
         fields=['mean_img']),
                         name='outputspec')
 
-    # get functional files.
+    ################## get functional files.
     def get_files(subject_list, template):
         import glob
         out_list = []
@@ -51,26 +51,18 @@ def create_ref_img_wf():
         function=get_files),
                        name='get_imgs')
 
-    # average each functional file, along 4th dimension.
-    # def mean_4d(in_file):
-    #     import nibabel as nib
-    #     from nilearn.image import mean_img
-    #     mean_img = mean_img(in_file)
-    #     nib.save(mean_img, in_file+'_mean.nii.gz')
-    #     out_file = nib.load(in_file+'_mean.nii.gz')
-    #     return out_file
-
+    ################## average each subject's functional data.
     mean_imgs = pe.MapNode(fsl.maths.MeanImage(),
         iterfield = ['in_file'],
         name='mean_imgs')
 
-    # combine all averaged functional images.
+    ################## combine all averaged functional images into one 4d array.
     merge_imgs = pe.Node(interface=fsl.Merge(dimension='t'),
                        name='merge_imgs')
 #     merge_func.inputs.in_files = # from mean_func
     merge_imgs.inputs.dimension = 't'
 
-    # Then average all average functional images.
+    ################## Then average all average functional images.
     grand_mean = pe.Node(fsl.maths.MeanImage(),
         iterfield = ['in_file'],
         name='grand_mean')
@@ -87,18 +79,42 @@ def create_ref_img_wf():
 
 
 
-# def create_align_mask_wf():
-#
-#     #TODO work on this
-#         ################ Align Mask WF.
-#     align_ref = pe.Node(interface=fsl.FLIRT(),
-#                        name='align_ref')
-#     align_ref.inputs.in_file = mask_space_brain #TODO - from inputspec
-#     align_ref.inputs.reference = # from make_mean_ref.outputs.out_file
-#
-#     align_mask = pe.Node(interface=fsl.FLIRT(),
-#                         name='align_mask')
-#     align_mask.inputs.in_file = mask_file #TODO - from inputspec
-#     align_mask.inputs.reference = # from make_mean_ref.outputs.out_file
-#     align_mask.inputs.apply_xfm = True
-#     align_mask.inputs.in_matrix_file = # From align_ref.outputs.out_matrix_file
+def create_align_mask_wf():
+
+    import nipype.pipeline.engine as pe # pypeline engine
+    import nipype.interfaces.fsl as fsl
+    import os
+    from nipype import IdentityInterface
+    from nipype.interfaces.utility.wrappers import Function
+
+    ################## Setup workflow.
+    align_mask = pe.Workflow(name='align_mask')
+    inputspec = pe.Node(IdentityInterface(
+        fields=['mask', 'mask_T1', 'ref_img']),
+                 name='inputspec')
+    outputspec = pe.Node(IdentityInterface(
+        fields=['aligned_mask']),
+                        name='outputspec')
+
+    ################ Align T1 image to avg functional data.
+    align_T1 = pe.Node(interface=fsl.FLIRT(),
+                       name='align_ref')
+    # align_ref.inputs.in_file = from inputspec
+    # align_ref.inputs.reference = # from make_mean_ref.outputs.out_file
+
+    ################## Align mask using affline transform from T1 -> functional.
+    align_mask = pe.Node(interface=fsl.FLIRT(),
+                        name='align_mask')
+    # align_mask.inputs.in_file =  from inputspec
+    # align_mask.inputs.reference = # from make_mean_ref.outputs.out_file
+    align_mask.inputs.apply_xfm = True
+    # align_mask.inputs.in_matrix_file = # From align_ref.outputs.out_matrix_file
+
+    align_mask.connect([(inputspec, align_T1, [('mask_T1', 'in_file'),
+                                                ('ref_img', 'reference')]),
+                    (inputspec, align_mask, [('mask', 'in_file'),
+                                            ('ref_img', 'reference')]),
+                    (align_T1, align_mask, [('out_matrix_file', 'in_matrix_file')]),
+                    (align_mask, outputspec, [('out_file', 'aligned_mask')]),
+                    ])
+    return align_mask_wf
