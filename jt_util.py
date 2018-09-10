@@ -80,6 +80,21 @@ def create_ref_img_wf():
 
 
 def create_align_mask_wf():
+    '''
+    Creates a workflow to align a mask to a reference space.
+    e.g. a mask in 193x229x193 space, can be transformed into 176x208x176 space.
+
+    The workflow takes the following as input to wf.inputs.inputspec
+
+    Input [Mandatory]:
+    wf.inputs.inputspec.mask: path to mask in original space.
+    wf.inputs.inputspec.mask_T1: path to T1 image in mask's original space.
+    wf.inputs.inputspec.reg_img: path to reference image in target space.
+        see jt_util.create_ref_img_wf.
+
+    Output
+        wf.outputs.outputspec.aligned_mask: mask in target space.
+    '''
 
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
