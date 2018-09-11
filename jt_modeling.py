@@ -175,7 +175,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (inputspec, make_template, [('input_dir', 'input_dir'),
                                     ('output_dir', 'output_dir')]),
         (inputspec, get_model_info, [('full_cons', 'full_cons'),
-                                    ('con_regressors', 'full_regs')]),
+                                    ('con_regressors', 'con_regressors')]),
         (infosource, get_model_info, [('contrast', 'contrast')]),
         (inputspec, get_copes, [('subject_list', 'subject_list')]),
         (make_template, get_copes, [('template', 'template')]),
