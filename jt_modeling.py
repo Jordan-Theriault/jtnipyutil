@@ -10,6 +10,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         fwhm_list: list of strings representing smoothing kernels. ITERABLE.
             'None' represents no smoothing.
             e.g. ['none', '1.5', '6']
+
         full_cons: dictionary of each contrast. ITERABLE.
             Names should match con_regressors.
             Entries in format [('name', 'stat', [condition_list], [weight])]
@@ -20,8 +21,10 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         ~~~~~~~~~~~ Set through inputs.inputspec
         input_dir: string, representing directory to level1 data, modeled using TODO.
             e.g. inputs.inputspec.input_dir = '/home/neuro/data/'
+
         output_dir: string, representing directory of output.
             e.g. inputs.inputspec.output_dir ='/home/neuro/output'
+
         subject_list: list of string, with BIDs-format IDs to identify subjects.
             Use this to drop high movement subjects, even if they are among other files that will be grabbed.
             e.g. inputs.inputspec.subject_list =['sub-001', sub-002']
@@ -38,10 +41,11 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
             mask_file: path to mask file. Must be in same space as functional data.
                 see jt_util.create_align_mask_wf
                 e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks.amygdala_bl_flirt.nii.gz'
+
             sinker_subs: list of tuples, each containing a pair of strings.
                 These will be sinker substitutions. They will change filenames in the output folder.
                 Usually best to run the pipeline once, before deciding on these.
-                e.g. inputs.inputspec.sinker_substitutions = [('tstat', 'raw_tstat'),
+                e.g. inputs.inputspec.sinker_subs = [('tstat', 'raw_tstat'),
                        ('tfce_corrp_raw_tstat', 'tfce_corrected_p')]
     '''
     import nipype.pipeline.engine as pe # pypeline engine
@@ -51,7 +55,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     from nipype.interfaces.utility.wrappers import Function
 
     ##################  Setup workflow.
-    lvl2tfce_wf = pe.Workflow(name='make_ref_img')
+    lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
 
     inputspec = pe.Node(IdentityInterface(
         fields=['input_dir',
