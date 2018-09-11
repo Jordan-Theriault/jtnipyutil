@@ -20,7 +20,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
 
         ~~~~~~~~~~~ Set through inputs.inputspec
         input_dir: string, representing directory to level1 data, modeled using TODO.
-            e.g. inputs.inputspec.input_dir = '/home/neuro/data/'
+            e.g. inputs.inputspec.input_dir = '/home/neuro/data'
 
         output_dir: string, representing directory of output.
             e.g. inputs.inputspec.output_dir ='/home/neuro/output'
@@ -106,7 +106,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         return template, out_path
 
     from nipype.interfaces.utility.wrappers import Function
-    make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir, ''output_dir'],
+    make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir', 'output_dir'],
                                 output_names=['template', 'out_path'],
                                 function=get_template),
                         name='make_template')
