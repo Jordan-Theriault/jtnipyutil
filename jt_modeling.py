@@ -1,7 +1,35 @@
+# Setup outside.
+# 'study_dir',
+# 'work_dir',
+# 'output_dir',
+# 'crash_dump',
 def create_lvl2tfce_wf():
 
     '''
     Input [Mandatory]:
+        subject_list: list of string, with BIDs-format IDs to identify subjects.
+            Use this to drop high movement subjects, even if they are among other files that will be grabbed.
+            e.g. ['sub-001', sub-002']
+        fwhm_list: list of strings representing smoothing kernels.
+            'None' represents no smoothing. ITERABLE.
+            e.g. ['none', '1.5', '6']
+        full_cons: dictionary of each contrast.
+            Names should match con_regressors.
+            Entries in format [('name', 'stat', [condition_list], [weight])]
+            e.g. full_cons = {
+                '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
+                }
+        con_regressors: dictionary of by-subject regressors for each contrast.
+                Names should match full_cons.
+                e.g. con_regressors = {
+                        '1_instructions_Instructions': {'1_instructions_Instructions': [1] * len(subject_list),
+                        'reg2': [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+                        'reg3': [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+                        }
+                    }
+        Input [Optional]:
+            mask_file: path to mask file. Must be in same space as functional data.
+                see jt_util.create_align_mask_wf
     '''
 
     import nipype.pipeline.engine as pe # pypeline engine
@@ -13,10 +41,27 @@ def create_lvl2tfce_wf():
     ##################  Setup workflow.
     lvl2tfce_wf = pe.Workflow(name='make_ref_img')
 
+    inputspec = pe.Node(IdentityInterface(
+        fields=['mask_file',
+                'subject_list',
+                'fwhm_list', #iterable
+                'full_cons', # transform titles to iterable.
+                'con_regressors'
+                ],
+        mandatory_inputs=False),
+                 name='inputspec')
+
+     # Create list from contrast dictionary.
+    def con_dic_to_list(full_cons):
+        con_list = []
+        for entry in list(full_cons.values())[:]:
+            con_list.append(entry[0][0])
+        return con_list
+
     infosource = pe.Node(IdentityInterface(fields=['fwhm', 'contrast']),
                  name='infosource')
-                 infosource.iterables = [('contrast', contrast_list),
-                       ('fwhm', fwhm_list)]
+                 infosource.iterables = [('fwhm', inputspec.result.outputs.fwhm_list),
+                 ('contrast', con_dic_to_list(inputspec.result.outputs.full_cons))]
 
     ################## Make template
     def get_template(fwhm, contrast, output_dir):
@@ -135,7 +180,7 @@ def create_lvl2tfce_wf():
    wf.connect([
        (make_template, sinker, [('out_path', 'base_directory')])
        ])
-       
+
     wf.connect([(merge_copes, randomise, [('merged_file', 'in_file')]), # Changed this from (merge_copes, randomise, [(('merged_file', index_list), 'in_file')]),
                 (level2model, randomise, [('design_mat', 'design_mat')]),
                 (level2model, randomise, [('design_con', 'tcon')]),
