@@ -1,8 +1,3 @@
-# Setup outside.
-# 'study_dir',
-# 'work_dir',
-# 'output_dir',
-# 'crash_dump',
 def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
     '''
     Input [Mandatory]:
