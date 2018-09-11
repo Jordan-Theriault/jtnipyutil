@@ -63,8 +63,8 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
                 ],
         mandatory_inputs=False),
                  name='inputspec')
-    inputs.inputspec.fwhm_list = fwhm_list
-    inputs.inputspec.full_cons = full_cons
+    inputspec.inputs.fwhm_list = fwhm_list
+    inputspec.inputs.full_cons = full_cons
 
      # Create list from contrast dictionary.
     def con_dic_to_list(full_cons):
@@ -182,7 +182,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (level2model, randomise, [('design_mat', 'design_mat')]),
         (level2model, randomise, [('design_con', 'tcon')]),
         ])
-    if inputs.inputspec.mask_file:
+    if inputspec.inputs.mask_file:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
             ])
