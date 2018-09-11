@@ -17,18 +17,18 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
                 '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
                 }
 
-        ~~~~~~~~~~~ Set through inputspec.inputs
+        ~~~~~~~~~~~ Set through inputs.inputspec
         input_dir: string, representing directory to level1 data, modeled using TODO.
-            e.g. inputspec.inputs.input_dir = '/home/neuro/data/'
+            e.g. inputs.inputspec.input_dir = '/home/neuro/data/'
         output_dir: string, representing directory of output.
-            e.g. inputspec.inputs.output_dir ='/home/neuro/output'
+            e.g. inputs.inputspec.output_dir ='/home/neuro/output'
         subject_list: list of string, with BIDs-format IDs to identify subjects.
             Use this to drop high movement subjects, even if they are among other files that will be grabbed.
-            e.g. inputspec.inputs.subject_list =['sub-001', sub-002']
+            e.g. inputs.inputspec.subject_list =['sub-001', sub-002']
 
         con_regressors: dictionary of by-subject regressors for each contrast.
                 Names should match full_cons.
-                e.g. inputspec.inputs.con_regressors = {
+                e.g. inputs.inputspec.con_regressors = {
                         '1_instructions_Instructions': {'1_instructions_Instructions': [1] * len(subject_list),
                         'reg2': [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
                         'reg3': [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
@@ -37,11 +37,11 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         Input [Optional]:
             mask_file: path to mask file. Must be in same space as functional data.
                 see jt_util.create_align_mask_wf
-                e.g. inputspec.inputs.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks.amygdala_bl_flirt.nii.gz'
+                e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks.amygdala_bl_flirt.nii.gz'
             sinker_subs: list of tuples, each containing a pair of strings.
                 These will be sinker substitutions. They will change filenames in the output folder.
                 Usually best to run the pipeline once, before deciding on these.
-                e.g. inputspec.inputs.sinker_substitutions = [('tstat', 'raw_tstat'),
+                e.g. inputs.inputspec.sinker_substitutions = [('tstat', 'raw_tstat'),
                        ('tfce_corrp_raw_tstat', 'tfce_corrected_p')]
     '''
     import nipype.pipeline.engine as pe # pypeline engine
@@ -63,8 +63,8 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
                 ],
         mandatory_inputs=False),
                  name='inputspec')
-    inputspec.inputs.fwhm_list = fwhm_list
-    inputspec.inputs.full_cons = full_cons
+    inputs.inputspec.fwhm_list = fwhm_list
+    inputs.inputspec.full_cons = full_cons
 
      # Create list from contrast dictionary.
     def con_dic_to_list(full_cons):
@@ -182,7 +182,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (level2model, randomise, [('design_mat', 'design_mat')]),
         (level2model, randomise, [('design_con', 'tcon')]),
         ])
-    if inputspec.inputs.mask_file:
+    if inputs.inputspec.mask_file:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
             ])
