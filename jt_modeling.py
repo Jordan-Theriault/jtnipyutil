@@ -3,25 +3,33 @@
 # 'work_dir',
 # 'output_dir',
 # 'crash_dump',
-def create_lvl2tfce_wf():
+def create_lvl2tfce_wf(fwhm_list, full_cons):
 
     '''
     Input [Mandatory]:
-        subject_list: list of string, with BIDs-format IDs to identify subjects.
-            Use this to drop high movement subjects, even if they are among other files that will be grabbed.
-            e.g. ['sub-001', sub-002']
-        fwhm_list: list of strings representing smoothing kernels.
-            'None' represents no smoothing. ITERABLE.
+        ~~~~~~~~~~ Set as part of function call:
+        fwhm_list: list of strings representing smoothing kernels. ITERABLE.
+            'None' represents no smoothing.
             e.g. ['none', '1.5', '6']
-        full_cons: dictionary of each contrast.
+        full_cons: dictionary of each contrast. ITERABLE.
             Names should match con_regressors.
             Entries in format [('name', 'stat', [condition_list], [weight])]
             e.g. full_cons = {
                 '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
                 }
+
+        ~~~~~~~~~~~ Set through inputspec.inputs
+        input_dir: string, representing directory to level1 data, modeled using TODO.
+            e.g. inputspec.inputs.input_dir = '/home/neuro/data/'
+        output_dir: string, representing directory of output.
+            e.g. inputspec.inputs.output_dir ='/home/neuro/output'
+        subject_list: list of string, with BIDs-format IDs to identify subjects.
+            Use this to drop high movement subjects, even if they are among other files that will be grabbed.
+            e.g. inputspec.inputs.subject_list =['sub-001', sub-002']
+
         con_regressors: dictionary of by-subject regressors for each contrast.
                 Names should match full_cons.
-                e.g. con_regressors = {
+                e.g. inputspec.inputs.con_regressors = {
                         '1_instructions_Instructions': {'1_instructions_Instructions': [1] * len(subject_list),
                         'reg2': [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
                         'reg3': [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
@@ -30,6 +38,12 @@ def create_lvl2tfce_wf():
         Input [Optional]:
             mask_file: path to mask file. Must be in same space as functional data.
                 see jt_util.create_align_mask_wf
+                e.g. inputspec.inputs.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks.amygdala_bl_flirt.nii.gz'
+            sinker_subs: list of tuples, each containing a pair of strings.
+                These will be sinker substitutions. They will change filenames in the output folder.
+                Usually best to run the pipeline once, before deciding on these.
+                e.g. inputspec.inputs.sinker_substitutions = [('tstat', 'raw_tstat'),
+                       ('tfce_corrp_raw_tstat', 'tfce_corrected_p')]
     '''
 
     import nipype.pipeline.engine as pe # pypeline engine
@@ -42,14 +56,17 @@ def create_lvl2tfce_wf():
     lvl2tfce_wf = pe.Workflow(name='make_ref_img')
 
     inputspec = pe.Node(IdentityInterface(
-        fields=['mask_file',
+        fields=['input_dir',
+                'output_dir',
+                'mask_file',
                 'subject_list',
-                'fwhm_list', #iterable
-                'full_cons', # transform titles to iterable.
-                'con_regressors'
+                'con_regressors',
+                'sinker_subs',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
+     inputspec.inputs.fwhm_list = fwhm_list
+     inputspec.inputs.full_cons = full_cons
 
      # Create list from contrast dictionary.
     def con_dic_to_list(full_cons):
@@ -60,17 +77,17 @@ def create_lvl2tfce_wf():
 
     infosource = pe.Node(IdentityInterface(fields=['fwhm', 'contrast']),
                  name='infosource')
-                 infosource.iterables = [('fwhm', inputspec.result.outputs.fwhm_list),
-                 ('contrast', con_dic_to_list(inputspec.result.outputs.full_cons))]
+                 infosource.iterables = [('fwhm', fwhm_list),
+                 ('contrast', con_dic_to_list(full_cons))]
 
     ################## Make template
-    def get_template(fwhm, contrast, output_dir):
+    def get_template(fwhm, contrast, input_dir, output_dir):
         import os
         # makes template to grab copes files, based on the smoothing kernel being processed.
         if fwhm == 'none':
             con_file = 'cope'+contrast+'.nii.gz'
             template={
-                'cope': os.path.join('/home/neuro/data/', 'nosmooth', 'sub-*/model/sub-*',
+                'cope': os.path.join(input_dir, 'nosmooth', 'sub-*/model/sub-*',
                          'data', con_file)
             }
             out_path = os.path.join(output_dir, 'nosmooth')
@@ -78,7 +95,7 @@ def create_lvl2tfce_wf():
             fwhm_path = 'fwhm_'+fwhm
             con_file = 'cope'+contrast+'.nii.gz'
             template={
-                'cope': os.path.join('/home/neuro/data/', 'smooth', 'sub-*/model/sub-*',
+                'cope': os.path.join(input_dir, 'smooth', 'sub-*/model/sub-*',
                          fwhm_path, 'data', con_file)
             }
             out_path = os.path.join(output_dir, fwhm)
@@ -87,25 +104,26 @@ def create_lvl2tfce_wf():
         return template, out_path
 
     from nipype.interfaces.utility.wrappers import Function
-    make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'output_dir'],
+    make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir, ''output_dir'],
                                  output_names=['template', 'out_path'],
                                   function=get_template),
                          name='make_template')
-    make_template.inputs.output_dir = output_dir
+    # make_template.inputs.output_dir = from inputspec
+    # make_template.inputs.input_dir = from inputspec
     # make_template.inputs.fwhm # From infosource.
 
     ################## Get contrast
-    def get_con(contrast, full_cons, full_regs):
+    def get_con(contrast, full_cons, con_regressors):
         con_info = full_cons[contrast]
-        reg_info = full_regs[contrast]
+        reg_info = con_regressors[contrast]
         return con_info, reg_info
 
-    get_model_info = pe.Node(Function(input_names=['contrast', 'full_cons', 'full_regs'],
+    get_model_info = pe.Node(Function(input_names=['contrast', 'full_cons', 'con_regressors'],
                                    output_names=['con_info', 'reg_info'],
                                    function=get_con),
                           name='get_model_info')
-    get_model_info.inputs.full_cons = full_cons
-    get_model_info.inputs.full_regs = full_regs
+    # get_model_info.inputs.full_cons = From inputspec
+    # get_model_info.inputs.full_regs = From inputspec
 
     ################## Get files
     def get_files(subject_list, template):
@@ -121,13 +139,12 @@ def create_lvl2tfce_wf():
         output_names=['out_list'],
         function=get_files),
                         name='get_copes')
-    get_copes.inputs.subject_list = subject_list
+    # get_copes.inputs.subject_list = # From inputspec
     # get_copes.inputs.template = template # From make_template.
-
 
     ################## Merge into 4d files.
     import nipype.interfaces.fsl as fsl # fsl
-    merge_copes = pe.Node(interface=fsl.Merge(dimension='t'), # Changed this from mapnode. TODO make sure this is ok.
+    merge_copes = pe.Node(interface=fsl.Merge(dimension='t'),
                       name='merge_copes')
     # merge_copes.inputs.in_files = copes
 
@@ -136,13 +153,6 @@ def create_lvl2tfce_wf():
                          name='level2model')
     # level2model.inputs.contrasts # from get_con_info
     # level2model.inputs.regressors # from get_con_info
-    wf.connect([(get_model_info, level2model, [('con_info', 'contrasts')]),
-                (get_model_info, level2model, [('reg_info', 'regressors')]),
-                (level2model, sinker, [('design_con', 'out.@con')]),
-    #             (level2model, sinker, [('design_fts', 'out.@fts')]), #TODO - add if F contrast.
-                (level2model, sinker, [('design_grp', 'out.@grp')]),
-                (level2model, sinker, [('design_mat', 'out.@mat')]),
-                ])
 
     ################## FSL Randomize.
     randomise = pe.Node(interface=fsl.Randomise(), name = 'randomise')
@@ -156,40 +166,41 @@ def create_lvl2tfce_wf():
     randomise.inputs.vox_p_values = True
     # randomise.inputs.num_perm = 5000
 
+    ################## Setup Pipeline.
+    wf.connect([
+        (infosource, make_template, [('fwhm', 'fwhm'),
+                                    ('contrast', 'contrast')]),
+        (inputspec, make_template, [('input_dir', 'input_dir'),
+                                    ('output_dir', 'output_dir')]),
+        (inputspec, get_model_info, [('full_cons', 'full_cons'),
+                                    ('con_regressors', 'full_regs')]),
+        (infosource, get_model_info, [('contrast', 'contrast')]),
+        (inputspec, get_copes, [('subject_list', 'subject_list')]),
+        (make_template, get_copes, [('template', 'template')]),
+        (get_copes, merge_copes, [('out_list', 'in_file')]),
+        (get_model_info, level2model, [('con_info', 'contrasts')]),
+        (get_model_info, level2model, [('reg_info', 'regressors')]),
+        (merge_copes, randomise, [('merged_file', 'in_file')]),
+        (level2model, randomise, [('design_mat', 'design_mat')]),
+        (level2model, randomise, [('design_con', 'tcon')]),
+        ])
+    if inputspec.inputs.mask_file:
+        wf.connect([
+            (inputspec, randomise, [('mask_file', 'mask')]),
+            ])
+
     ################## Setup datasink.
     from nipype.interfaces.io import DataSink
     import os
     # sinker = pe.Node(DataSink(parameterization=False), name='sinker')
     sinker = pe.Node(DataSink(parameterization=True), name='sinker')
-    sinker.inputs.substitutions = sinker_substitutions
-    # sinker.inputs.base_directory =
-
 
     wf.connect([
-        (infosource, make_template, [('fwhm', 'fwhm')]),
-        (infosource, make_template, [('contrast', 'contrast')]),
+        (infosource, sinker, [('sinker_subs', 'substitutions')]),
+        (make_template, sinker, [('out_path', 'base_directory')]),
+        (level2model, sinker, [('design_con', 'out.@con')]),
+        (level2model, sinker, [('design_grp', 'out.@grp')]),
+        (level2model, sinker, [('design_mat', 'out.@mat')]),
+        (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
+        (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
         ])
-    wf.connect([
-        (infosource, get_model_info, [('contrast', 'contrast')])
-        ])
-    wf.connect([
-        (make_template, get_copes, [('template', 'template')])
-        ])
-    wf.connect([(merge_copes, sinker, [('merged_file', 'out')]),
-               (get_copes, merge_copes, [('out_list', 'in_files')])])
-   wf.connect([
-       (make_template, sinker, [('out_path', 'base_directory')])
-       ])
-
-    wf.connect([(merge_copes, randomise, [('merged_file', 'in_file')]), # Changed this from (merge_copes, randomise, [(('merged_file', index_list), 'in_file')]),
-                (level2model, randomise, [('design_mat', 'design_mat')]),
-                (level2model, randomise, [('design_con', 'tcon')]),
-    #             (randomise, sinker, [('f_corrected_p_files', 'out.@f_cor_p')]),
-    #             (randomise, sinker, [('f_p_files', 'out.@f_p')]),
-    #             (randomise, sinker, [('fstat_files', 'out.@fstat')]),
-    #             (randomise, sinker, [('t_p_files', 'out.@t_p')]),
-                (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
-                (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
-               ])
-    if mask_file:
-        wf.connect([(FLIRT, randomise, [('out_file', 'mask')])]) # TODO - switch input to from workflow.
