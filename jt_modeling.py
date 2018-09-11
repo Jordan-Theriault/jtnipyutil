@@ -55,7 +55,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     from nipype.interfaces.utility.wrappers import Function
 
     ##################  Setup workflow.
-    lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
+    lvl2tfce_wf = pe.Workflow(name='lvl2_tfce_wf')
 
     inputspec = pe.Node(IdentityInterface(
         fields=['input_dir',
@@ -198,7 +198,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     sinker = pe.Node(DataSink(parameterization=True), name='sinker')
 
     lvl2tfce_wf.connect([
-        (infosource, sinker, [('sinker_subs', 'substitutions')]),
+        (inputspec, sinker, [('sinker_subs', 'substitutions')]),
         (make_template, sinker, [('out_path', 'base_directory')]),
         (level2model, sinker, [('design_con', 'out.@con')]),
         (level2model, sinker, [('design_grp', 'out.@grp')]),
