@@ -4,7 +4,6 @@
 # 'output_dir',
 # 'crash_dump',
 def create_lvl2tfce_wf(fwhm_list, full_cons):
-
     '''
     Input [Mandatory]:
         ~~~~~~~~~~ Set as part of function call:
@@ -45,7 +44,6 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
                 e.g. inputspec.inputs.sinker_substitutions = [('tstat', 'raw_tstat'),
                        ('tfce_corrp_raw_tstat', 'tfce_corrected_p')]
     '''
-
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
     import os
@@ -65,8 +63,8 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
                 ],
         mandatory_inputs=False),
                  name='inputspec')
-     inputspec.inputs.fwhm_list = fwhm_list
-     inputspec.inputs.full_cons = full_cons
+    inputspec.inputs.fwhm_list = fwhm_list
+    inputspec.inputs.full_cons = full_cons
 
      # Create list from contrast dictionary.
     def con_dic_to_list(full_cons):
@@ -76,9 +74,9 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         return con_list
 
     infosource = pe.Node(IdentityInterface(fields=['fwhm', 'contrast']),
-                 name='infosource')
-                 infosource.iterables = [('fwhm', fwhm_list),
-                 ('contrast', con_dic_to_list(full_cons))]
+                name='infosource')
+    infosource.iterables = [('fwhm', fwhm_list),
+        ('contrast', con_dic_to_list(full_cons))]
 
     ################## Make template
     def get_template(fwhm, contrast, input_dir, output_dir):
@@ -96,7 +94,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
             con_file = 'cope'+contrast+'.nii.gz'
             template={
                 'cope': os.path.join(input_dir, 'smooth', 'sub-*/model/sub-*',
-                         fwhm_path, 'data', con_file)
+                        fwhm_path, 'data', con_file)
             }
             out_path = os.path.join(output_dir, fwhm)
         if not os.path.isdir(out_path):
@@ -105,9 +103,9 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
 
     from nipype.interfaces.utility.wrappers import Function
     make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir, ''output_dir'],
-                                 output_names=['template', 'out_path'],
-                                  function=get_template),
-                         name='make_template')
+                                output_names=['template', 'out_path'],
+                                function=get_template),
+                        name='make_template')
     # make_template.inputs.output_dir = from inputspec
     # make_template.inputs.input_dir = from inputspec
     # make_template.inputs.fwhm # From infosource.
@@ -119,9 +117,9 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         return con_info, reg_info
 
     get_model_info = pe.Node(Function(input_names=['contrast', 'full_cons', 'con_regressors'],
-                                   output_names=['con_info', 'reg_info'],
-                                   function=get_con),
-                          name='get_model_info')
+                                output_names=['con_info', 'reg_info'],
+                                function=get_con),
+                        name='get_model_info')
     # get_model_info.inputs.full_cons = From inputspec
     # get_model_info.inputs.full_regs = From inputspec
 
@@ -145,12 +143,12 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     ################## Merge into 4d files.
     import nipype.interfaces.fsl as fsl # fsl
     merge_copes = pe.Node(interface=fsl.Merge(dimension='t'),
-                      name='merge_copes')
+                    name='merge_copes')
     # merge_copes.inputs.in_files = copes
 
     ################## Level 2 design.
     level2model = pe.Node(interface=fsl.MultipleRegressDesign(),
-                         name='level2model')
+                        name='level2model')
     # level2model.inputs.contrasts # from get_con_info
     # level2model.inputs.regressors # from get_con_info
 
@@ -167,7 +165,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     # randomise.inputs.num_perm = 5000
 
     ################## Setup Pipeline.
-    wf.connect([
+    lvl2tfce_wf.connect([
         (infosource, make_template, [('fwhm', 'fwhm'),
                                     ('contrast', 'contrast')]),
         (inputspec, make_template, [('input_dir', 'input_dir'),
@@ -177,7 +175,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (infosource, get_model_info, [('contrast', 'contrast')]),
         (inputspec, get_copes, [('subject_list', 'subject_list')]),
         (make_template, get_copes, [('template', 'template')]),
-        (get_copes, merge_copes, [('out_list', 'in_file')]),
+        (get_copes, merge_copes, [('out_list', 'in_files')]),
         (get_model_info, level2model, [('con_info', 'contrasts')]),
         (get_model_info, level2model, [('reg_info', 'regressors')]),
         (merge_copes, randomise, [('merged_file', 'in_file')]),
@@ -185,7 +183,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (level2model, randomise, [('design_con', 'tcon')]),
         ])
     if inputspec.inputs.mask_file:
-        wf.connect([
+        lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
             ])
 
@@ -195,7 +193,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     # sinker = pe.Node(DataSink(parameterization=False), name='sinker')
     sinker = pe.Node(DataSink(parameterization=True), name='sinker')
 
-    wf.connect([
+    lvl2tfce_wf.connect([
         (infosource, sinker, [('sinker_subs', 'substitutions')]),
         (make_template, sinker, [('out_path', 'base_directory')]),
         (level2model, sinker, [('design_con', 'out.@con')]),
@@ -204,3 +202,4 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
         (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
         ])
+    return lvl2tfce_wf
