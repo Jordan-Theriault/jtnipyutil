@@ -3,7 +3,7 @@
 # 'work_dir',
 # 'output_dir',
 # 'crash_dump',
-def create_lvl2tfce_wf(fwhm_list, full_cons):
+def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
     '''
     Input [Mandatory]:
         ~~~~~~~~~~ Set as part of function call:
@@ -55,7 +55,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
     from nipype.interfaces.utility.wrappers import Function
 
     ##################  Setup workflow.
-    lvl2tfce_wf = pe.Workflow(name='lvl2_tfce_wf')
+    lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
 
     inputspec = pe.Node(IdentityInterface(
         fields=['input_dir',
@@ -186,7 +186,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons):
         (level2model, randomise, [('design_mat', 'design_mat')]),
         (level2model, randomise, [('design_con', 'tcon')]),
         ])
-    if inputspec.inputs.mask_file:
+    if use_mask:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
             ])
