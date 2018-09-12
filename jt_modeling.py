@@ -62,8 +62,6 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
                 ],
         mandatory_inputs=False),
                  name='inputspec')
-    inputspec.inputs.fwhm_list = fwhm_list
-    inputspec.inputs.full_cons = full_cons
 
      # Create list from contrast dictionary.
     def con_dic_to_list(full_cons):
@@ -211,3 +209,13 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
         (inputspec, sinker, [('mask_file', 'out.@mask')]),
         ])
     return lvl2tfce_wf
+
+def create_lvl1model_wf(subject_list):
+    import nipype.pipeline.engine as pe # pypeline engine
+
+
+    from nipype import IdentityInterface
+    # Select Subject and Run
+    infosource = pe.Node(IdentityInterface(fields=['subject_id']),
+                     name='infosource')
+    infosource.iterables = [('subject_id', subject_list)]
