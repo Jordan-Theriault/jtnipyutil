@@ -1,6 +1,6 @@
-def create_ref_img_wf():
+def create_grandmean_img_wf():
     '''
-    Creates a workflow, which creates a reference image, averaging across all functional files given.
+    Creates a workflow, which creates a grand mean image, averaging within each file, then across all images given.
 
     The workflow takes the following as input to wf.inputs.inputspec
 
@@ -28,7 +28,7 @@ def create_ref_img_wf():
     from nipype.interfaces.utility.wrappers import Function
 
     ################## Setup workflow.
-    ref_img_wf = pe.Workflow(name='make_ref_img')
+    grandmean_wf = pe.Workflow(name='make_ref_img')
     inputspec = pe.Node(IdentityInterface(
         fields=['subject_list', 'template']),
                  name='inputspec')
@@ -68,14 +68,14 @@ def create_ref_img_wf():
         name='grand_mean')
 
 
-    ref_img_wf.connect([(inputspec, get_imgs, [('subject_list', 'subject_list')]),
+    grandmean_wf.connect([(inputspec, get_imgs, [('subject_list', 'subject_list')]),
                     (inputspec, get_imgs, [('template', 'template')]),
                     (get_imgs, mean_imgs, [('out_list', 'in_file')]),
                     (mean_imgs, merge_imgs, [('out_file', 'in_files')]),
                     (merge_imgs, grand_mean, [('merged_file', 'in_file')]),
                     (grand_mean, outputspec, [('out_file', 'mean_img')]),
                     ])
-    return ref_img_wf
+    return grandmean_wf
 
 
 
