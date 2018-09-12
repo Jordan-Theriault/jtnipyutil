@@ -104,7 +104,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
             }
             out_path = os.path.join(output_dir, fwhm)
         if not os.path.isdir(out_path):
-            os.mkdir(out_path)
+            os.makedirs(out_path)
         return template, out_path
 
     from nipype.interfaces.utility.wrappers import Function
