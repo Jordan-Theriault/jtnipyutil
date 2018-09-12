@@ -200,5 +200,6 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
         (level2model, sinker, [('design_mat', 'out.@mat')]),
         (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
         (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
+        (inputspec, sinker, [('mask_file', 'out.@mask')]),
         ])
     return lvl2tfce_wf
