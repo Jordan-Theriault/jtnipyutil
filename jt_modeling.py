@@ -35,7 +35,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
         Input [Optional]:
             mask_file: path to mask file. Must be in same space as functional data.
                 see jt_util.create_align_mask_wf
-                e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks.amygdala_bl_flirt.nii.gz'
+                e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks/amygdala_bl_flirt.nii.gz'
 
             sinker_subs: list of tuples, each containing a pair of strings.
                 These will be sinker substitutions. They will change filenames in the output folder.
@@ -78,9 +78,16 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
         ('contrast', con_dic_to_list(full_cons))]
 
     ################## Make template
-    def get_template(fwhm, contrast, input_dir, output_dir):
+    def get_template(fwhm, contrast, input_dir, output_dir, mask=False):
         import os
+        from time import gmtime, strftime
+        time_suffix = '_'+strftime("%Y-%m-%d_%Hh-%Mm", gmtime())
         # makes template to grab copes files, based on the smoothing kernel being processed.
+        if mask:
+            output_dir = os.path.join(output_dir, mask.split('/')[-1].split('.')[0]+time_suffix)
+        else:
+            output_dir = os.path.join(output_dir, 'wholebrain'+time_suffix)
+
         if fwhm == 'none':
             con_file = 'cope'+contrast+'.nii.gz'
             template={
@@ -184,6 +191,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
     if use_mask:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
+            (inputspec, make_template, [('mask_file', 'mask')])
             ])
 
     ################## Setup datasink.
