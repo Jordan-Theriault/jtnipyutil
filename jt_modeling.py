@@ -49,8 +49,6 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
     from nipype import IdentityInterface
     from nipype.interfaces.utility.wrappers import Function
 
-#TES
-
     ##################  Setup workflow.
     lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
 
