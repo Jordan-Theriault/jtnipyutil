@@ -42,6 +42,10 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
                 Usually best to run the pipeline once, before deciding on these.
                 e.g. inputs.inputspec.sinker_subs = [('tstat', 'raw_tstat'),
                        ('tfce_corrp_raw_tstat', 'tfce_corrected_p')]
+
+        Output:
+            lvl2tfce_wf: workflow to perform second-level modeling, using threshold free cluster estimation (tfce; see https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Randomise/UserGuide)
+
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
