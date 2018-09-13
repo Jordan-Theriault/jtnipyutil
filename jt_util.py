@@ -17,8 +17,7 @@ def create_grandmean_img_wf():
     This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
     Output:
-
-    TODO
+        grandmean_wf: workflow to create grand mean across all specified images.
     '''
 
     import nipype.pipeline.engine as pe # pypeline engine
@@ -95,7 +94,7 @@ def create_align_mask_wf():
         see jt_util.create_ref_img_wf.
 
     Output
-        wf.outputs.outputspec.aligned_mask: mask in target space.
+        align_mask_wf: workflow to create mask in reference space.
     '''
 
     import nipype.pipeline.engine as pe # pypeline engine
