@@ -134,3 +134,18 @@ def create_align_mask_wf():
                     (align_mask, outputspec, [('out_file', 'aligned_mask')]),
                     ])
     return align_mask_wf
+
+def fit_mask(mask_file, ref_file):
+    '''
+    Fits a mask file to the space of a reference image.
+    Input [Mandatory]:
+        mask_file: path to a nifti mask file, in any space.
+        ref_file: path to a nifti file, in target space. Can be 3d or 4d.
+    Output
+        mask: 3-dimensional numpy array, representing transformed mask. TODO - turn this into a file.
+    '''
+   mask = nib.load(mask_file)
+   ref = nib.load(ref_file).get_data() # grab data
+   interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
+   mask = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+   return mask
