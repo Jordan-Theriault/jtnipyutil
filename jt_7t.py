@@ -56,7 +56,7 @@ def extract_PAG(p_thresh_list):
     #                name='infosource')
     #    infosource.iterables = [('p_thresh', p_thresh_list)]
 
-       def mask_thresh_clust(file_list, mask_file, thresh=95, cluster_k=50):
+       def mask_thresh_clust_list(file_list, mask_file, thresh=95, cluster_k=50):
            import nibabel as nib
            import numpy as np
            from scipy.ndimage import label, zoom
@@ -69,22 +69,37 @@ def extract_PAG(p_thresh_list):
                             temp.shape[2], len(file_list)))
            for idx, file in enumerate(file_list): # iterate through residuals.
                img = nib.load(file).get_data() # grab data
-               img[img[...,0]==0] = np.nan # threshold voxels outside brain.
+               img[img[...,0]==0] = np.nan # threshold voxels outside brain, nan used to avoid problems with percentiles.
                img = np.nanmean(img, axis=3) # average over time.
                img[mask!=1] = np.nan # mask
-               imgs[...] < np.nanpercentile(imgs[...,idx], thresh)] = np.nan #threshold residuals.
-               label_map, n_labels = label(imgs[...,idx]) # label remaining voxels.
+               img[img < np.nanpercentile(img, thresh)] = np.nan #threshold residuals.
+               label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
                for label_ in range(1, n_labels+1): # addition to match labels, which are base-1.
-                   if np.sum(label_map==label_) < cluster_k:
-                       imgs[...,idx][label_map==label] = 0 # zero any clusters below cluster threshold.
+                   lab_val = 1
+                   if np.sum(label_map==label_) > cluster_k:
+                       imgs[...,idx][label_map==label_] = lab_val # zero any clusters below cluster threshold.
+                       lab_val = lab_val+1
+
            return imgs # imgs is 4d, containing all subjects, has labels numbered in each 3d array.
 
-       template = np.mean()
-
-       avg_clust = imgs
-       avg_clust[avg_clust > 1] = 0
-
-
+       def mask_thresh_clust(file, mask_file, thresh=95, cluster_k=50):
+           import nibabel as nib
+           import numpy as np
+           from jt_7t import fit_mask
+           from scipy.ndimage import label, zoom
+           img = np.nanmean(nib.load(file).get_data(), axis=3) # grab data, average along time.
+           mask = fit_mask(mask_file, file)
+           img[mask!=1] = np.nan # mask
+           img[img < np.nanpercentile(img, thresh)] = np.nan #threshold residuals.
+           out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
+           label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
+           lab_val = 1
+           for label_ in range(1, n_labels+1): # addition to match labels, which are base-1.
+               if np.sum(label_map==label_) >= cluster_k:
+                   print('found a cluster!')
+                   out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
+                   lab_val = lab_val+1
+           return out_labeled
 
 
            # grab files.
