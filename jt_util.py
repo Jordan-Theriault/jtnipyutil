@@ -135,17 +135,57 @@ def create_align_mask_wf():
                     ])
     return align_mask_wf
 
-def fit_mask(mask_file, ref_file):
+def mask_img(img_file, mask_file, work_dir, out_format = 'file'):
     '''
     Fits a mask file to the space of a reference image.
     Input [Mandatory]:
-        mask_file: path to a nifti mask file, in any space.
-        ref_file: path to a nifti file, in target space. Can be 3d or 4d.
+        img_file: path to a nifti file to be masked. Can be 3d or 4d.
+        mask_file: path to a nifti mask file. Does not need to match dimensions of img_file
+        work_dir: path to directory to save masked file.
+        out_format: [default = 'file'] Options are 'file', or 'np.array'.
     Output
-        mask: 3-dimensional numpy array, representing transformed mask. TODO - turn this into a file.
+        img_out: Either a nifti file, or a np array, depending on out_format.
     '''
-   mask = nib.load(mask_file)
-   ref = nib.load(ref_file).get_data() # grab data
-   interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
-   mask = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
-   return mask
+    import numpy as np
+    import nibabel as nib
+    import os.path
+    from scipy.ndimage import zoom
+
+    mask = nib.load(mask_file)
+    mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
+    img_name = img_file.split('/')[-1].split('.')[0]
+    img = nib.load(img_file) # grab data
+    data = nib.load(img_file).get_data() # grab data
+    if mask.shape != data.shape[0:3]:
+       interp_dims = np.array(data.shape[0:3])/np.array(mask.shape)
+       mask = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+    else:
+       mask = mask.get_data()
+
+    data[mask!=1] = np.nan # mask
+
+    if out_format == 'file':
+       out_file = nib.Nifti1Image(data, img.affine, img.header)
+       nib.save(out_file, os.path.join(work_dir, img_name + mask_name + '.nii.gz'))
+    elif out_format == 'np.array':
+       out_file = data
+
+    return out_file
+
+def clust_thresh(img, thresh=95, cluster_k=50):
+    '''
+    TODO
+    '''
+   import nibabel as nib
+   import numpy as np
+   from jt_util import fit_mask
+   from scipy.ndimage import label, zoom
+   out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
+   img[img < np.nanpercentile(img, thresh)] = np.nan #threshold residuals.
+   label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
+   lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
+   for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
+       if np.sum(label_map==label_) >= cluster_k:
+           out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
+           lab_val = lab_val+1 # add to counter.
+   return out_labeled
