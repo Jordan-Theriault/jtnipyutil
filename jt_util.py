@@ -105,11 +105,12 @@ def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
         assert (work_dir != ''), 'You must give a value for work_dir'
         out_mask = nib.Nifti1Image(data, img.affine, img.header)
         nib.save(out_mask, os.path.join(work_dir, mask_name + '_fit.nii.gz'))
+        out_mask = os.path.join(work_dir, mask_name + '_fit.nii.gz')
     else:
         assert (out_format == 'array'), 'out_format is neither file, or array.'
         out_mask = data
 
-   return out_mask
+    return out_mask
 
 def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
     '''
@@ -144,6 +145,7 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
         assert (work_dir != ''), 'You must give a value for work_dir'
         out_img = nib.Nifti1Image(data, img.affine, img.header)
         nib.save(out_img, os.path.join(work_dir, img_name + mask_name + '.nii.gz'))
+        out_img = os.path.join(work_dir, img_name + mask_name + '.nii.gz')
     else:
         assert (out_format == 'array'), 'out_format is neither file, or array.'
         out_img = data
@@ -158,16 +160,23 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     Input:
         thresh: % threshold extent. Default = 95
         cluster_k: k-voxel cluster extent. Default = 50.
+    Output:
+        out_labeled: 3d array, with values 1:N for clusters, and 0 otherwise.
+
+    TODO - provide report if requested, giving cluster labels, sizes, & center of mass.
+    TODO - allow multiple thresholds—output as 4d array.
+    TODO - allow multiple cluster extents, using later extents as fallback values if no clusters found.
     '''
-   import nibabel as nib
-   import numpy as np
-   from scipy.ndimage import label
-   out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
-   img[img < np.nanpercentile(img, thresh)] = np.nan #threshold residuals.
-   label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
-   lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
-   for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
-       if np.sum(label_map==label_) >= cluster_k:
-           out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
-           lab_val = lab_val+1 # add to counter.
-   return out_labeled
+    import nibabel as nib
+    import numpy as np
+    from scipy.ndimage import label
+    out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
+    data = img[np.where(~np.isnan(img))] # strip out data, to avoid np.nanpercentile.
+    img[img < np.percentile(data, thresh)] = np.nan #threshold residuals.
+    label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
+    lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
+    for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
+        if np.sum(label_map==label_) >= cluster_k:
+            out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
+            lab_val = lab_val+1 # add to counter.
+    return out_labeled
