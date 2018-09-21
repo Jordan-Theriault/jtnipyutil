@@ -76,65 +76,6 @@ def create_grandmean_img_wf():
                     ])
     return grandmean_wf
 
-
-
-def create_align_mask_wf():
-    '''
-    Creates a workflow to align a mask to a reference space.
-    e.g. a mask in 193x229x193 space, can be transformed into 176x208x176 space.
-
-    See also: jt_util.create_ref_img_wf
-
-    The workflow takes the following as input to wf.inputs.inputspec
-
-    Input [Mandatory]:
-    wf.inputs.inputspec.mask: path to mask in original space.
-    wf.inputs.inputspec.mask_T1: path to T1 image in mask's original space.
-    wf.inputs.inputspec.ref_img: path to reference image in target space.
-        see jt_util.create_ref_img_wf.
-
-    Output
-        align_mask_wf: workflow to create mask in reference space.
-    '''
-
-    import nipype.pipeline.engine as pe # pypeline engine
-    import nipype.interfaces.fsl as fsl
-    import os
-    from nipype import IdentityInterface
-    from nipype.interfaces.utility.wrappers import Function
-
-    ################## Setup workflow.
-    align_mask_wf = pe.Workflow(name='align_mask')
-    inputspec = pe.Node(IdentityInterface(
-        fields=['mask', 'mask_T1', 'ref_img']),
-                 name='inputspec')
-    outputspec = pe.Node(IdentityInterface(
-        fields=['aligned_mask']),
-                        name='outputspec')
-
-    ################ Align T1 image to avg functional data.
-    align_T1 = pe.Node(interface=fsl.FLIRT(),
-                       name='align_ref')
-    # align_ref.inputs.in_file = from inputspec
-    # align_ref.inputs.reference = # from make_mean_ref.outputs.out_file
-
-    ################## Align mask using affline transform from T1 -> functional.
-    align_mask = pe.Node(interface=fsl.FLIRT(),
-                        name='align_mask')
-    # align_mask.inputs.in_file =  from inputspec
-    # align_mask.inputs.reference = # from make_mean_ref.outputs.out_file
-    align_mask.inputs.apply_xfm = True
-    # align_mask.inputs.in_matrix_file = # From align_ref.outputs.out_matrix_file
-
-    align_mask_wf.connect([(inputspec, align_T1, [('mask_T1', 'in_file'),
-                                                ('ref_img', 'reference')]),
-                    (inputspec, align_mask, [('mask', 'in_file'),
-                                            ('ref_img', 'reference')]),
-                    (align_T1, align_mask, [('out_matrix_file', 'in_matrix_file')]),
-                    (align_mask, outputspec, [('out_file', 'aligned_mask')]),
-                    ])
-    return align_mask_wf
-
 def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
     '''
     Fits a mask file to the space of a reference image.
