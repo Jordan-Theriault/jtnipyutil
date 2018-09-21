@@ -135,13 +135,13 @@ def create_align_mask_wf():
                     ])
     return align_mask_wf
 
-def mask_img(img_file, mask_file, work_dir, out_format = 'file'):
+def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
     '''
     Fits a mask file to the space of a reference image.
     Input [Mandatory]:
         img_file: path to a nifti file to be masked. Can be 3d or 4d.
         mask_file: path to a nifti mask file. Does not need to match dimensions of img_file
-        work_dir: path to directory to save masked file.
+        work_dir: path to directory to save masked file. Required if out_format = 'file'.
         out_format: [default = 'file'] Options are 'file', or 'np.array'.
     Output
         img_out: Either a nifti file, or a np array, depending on out_format.
