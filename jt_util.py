@@ -176,20 +176,26 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     from scipy.ndimage import label
     out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
     data = img[np.where(~np.isnan(img))] # strip out data, to avoid np.nanpercentile.
-    img[img < np.percentile(data, thresh)] = np.nan #threshold residuals.
-    label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
+    img = np.nan_to_num(img)
+    # TODO - set up 4d threshold loop here.
+    img[img < np.percentile(data, thresh)] = 0 #threshold residuals.
+    label_map, n_labels = label(img) # label remaining voxels.
     lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
     if type(cluster_k) == int:
+        print(('cluster thresholding at %s voxels') % cluster_k)
         for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
             if np.sum(label_map==label_) >= cluster_k:
                 out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
+                print(('saving cluster %s') % lab_val)
                 lab_val = lab_val+1 # add to counter.
     else:
         assert (type(cluster_k) == list), 'cluster_k must either be an integer or list.'
         for k in cluster_k:
+            print(('cluster thresholding at %s voxels') % k)
             for label_ in range(1, n_labels+1):
                 if np.sum(label_map==label_) >= k:
                     out_labeled[label_map==label_] = lab_val
+                    print(('saving cluster %s') % lab_val)
                     lab_val = lab_val+1
             if lab_val > 1: # if we find any clusters above the threshold, then move on. Otherwise, try another threshold.
                 break
