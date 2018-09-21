@@ -158,14 +158,18 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     Input [Mandatory]:
         img: 3d array - e.g. from nib.get_data()
     Input:
-        thresh: % threshold extent. Default = 95
-        cluster_k: k-voxel cluster extent. Default = 50.
+        thresh: % threshold extent.
+            Default = 95
+        cluster_k: k-voxel cluster extent. integer or list.
+            Default = 50.
+            A list can be used to give fallback clusters. e.g. cluster_k= [50, 40]
+                In this case, the first threhsold is used,
+                and if nothing passes it then we move onto the next.
     Output:
         out_labeled: 3d array, with values 1:N for clusters, and 0 otherwise.
 
     TODO - provide report if requested, giving cluster labels, sizes, & center of mass.
     TODO - allow multiple thresholds—output as 4d array.
-    TODO - allow multiple cluster extents, using later extents as fallback values if no clusters found.
     '''
     import nibabel as nib
     import numpy as np
@@ -175,8 +179,19 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     img[img < np.percentile(data, thresh)] = np.nan #threshold residuals.
     label_map, n_labels = label(np.nan_to_num(img)) # label remaining voxels.
     lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
-    for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
-        if np.sum(label_map==label_) >= cluster_k:
-            out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
-            lab_val = lab_val+1 # add to counter.
+    if type(cluster_k) == int:
+        for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
+            if np.sum(label_map==label_) >= cluster_k:
+                out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
+                lab_val = lab_val+1 # add to counter.
+    else:
+        assert (type(cluster_k) == list), 'cluster_k must either be an integer or list.'
+        for k in cluster_k:
+            for label_ in range(1, n_labels+1):
+                if np.sum(label_map==label_) >= k:
+                    out_labeled[label_map==label_] = lab_val
+                    lab_val = lab_val+1
+            if lab_val > 1: # if we find any clusters above the threshold, then move on. Otherwise, try another threshold.
+                break
+
     return out_labeled
