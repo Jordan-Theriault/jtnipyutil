@@ -167,9 +167,6 @@ def clust_thresh(img, thresh=95, cluster_k=50):
                 and if nothing passes it then we move onto the next.
     Output:
         out_labeled: 3d array, with values 1:N for clusters, and 0 otherwise.
-
-    TODO - provide report if requested, giving cluster labels, sizes, & center of mass.
-    TODO - allow multiple thresholds—output as 4d array.
     '''
     import nibabel as nib
     import numpy as np
@@ -177,7 +174,6 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
     data = img[np.where(~np.isnan(img))] # strip out data, to avoid np.nanpercentile.
     img = np.nan_to_num(img)
-    # TODO - set up 4d threshold loop here.
     img[img < np.percentile(data, thresh)] = 0 #threshold residuals.
     label_map, n_labels = label(img) # label remaining voxels.
     lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
@@ -201,3 +197,26 @@ def clust_thresh(img, thresh=95, cluster_k=50):
                 break
 
     return out_labeled
+
+
+def files_from_template(identity_list, template):
+    '''
+    Uses glob to grab all matches to a template, then subsets the list with identifier.
+    Input [Mandatory]:
+        identity_list: string or list of strings, to grab subset of glob search.
+            e.g. 'sub-01', or ['sub-01', 'sub-02', 'sub-03']
+        template: string denoting a path, with wildcards, to be used in glob.
+            e.g. '/home/neuro/data/smoothsub-*/model/sub-*.nii.gz'
+    Output:
+        out_list: list of file paths, first from the glob template,
+        then subseted by identifier.
+    '''
+    import glob
+    out_list = []
+    if type(identity_list) != list:
+        assert (type(identity_list) == str), 'identifier must be either a string, or a list of string'
+        identity_list = [identity_list]
+    for x in glob.glob(template):
+        if any(subj in x for subj in identity_list):
+            out_list.append(x)
+    return out_list
