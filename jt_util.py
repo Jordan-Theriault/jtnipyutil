@@ -127,10 +127,11 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
     import nibabel as nib
     import os.path
     from scipy.ndimage import zoom
-
+    print(('loading mask file: %s') % mask_file)
     mask = nib.load(mask_file)
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
     img_name = img_file.split('/')[-1].split('.')[0]
+    print(('loading img file: %s') % img_file)
     img = nib.load(img_file) # grab data
     data = nib.load(img_file).get_data() # grab data
     if mask.shape != data.shape[0:3]:
@@ -178,7 +179,7 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     label_map, n_labels = label(img) # label remaining voxels.
     lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
     if type(cluster_k) == int:
-        print(('cluster thresholding at %s voxels') % cluster_k)
+        print(('looking for clusters > %s voxels') % cluster_k)
         for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
             if np.sum(label_map==label_) >= cluster_k:
                 out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
@@ -187,11 +188,11 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     else:
         assert (type(cluster_k) == list), 'cluster_k must either be an integer or list.'
         for k in cluster_k:
-            print(('cluster thresholding at %s voxels') % k)
+            print(('looking for clusters > %s voxels') % k)
             for label_ in range(1, n_labels+1):
                 if np.sum(label_map==label_) >= k:
                     out_labeled[label_map==label_] = lab_val
-                    print(('saving cluster %s') % lab_val)
+                    print(('saving cluster %s at min %s voxels') % (lab_val, k))
                     lab_val = lab_val+1
             if lab_val > 1: # if we find any clusters above the threshold, then move on. Otherwise, try another threshold.
                 break
