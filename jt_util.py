@@ -112,7 +112,7 @@ def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
 
     return out_mask
 
-def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
+def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_exclu = 'exclusive'):
     '''
     Fits a mask file to the space of a reference image.
     Input [Mandatory]:
@@ -120,6 +120,7 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
         mask_file: path to a nifti mask file. Does not need to match dimensions of img_file
         work_dir: [default = ''] path to directory to save masked file. Required if out_format = 'file'.
         out_format: [default = 'file'] Options are 'file', or 'array'.
+        inclu_exclu: [default = 'exclusive'] Options are 'exclusive' and 'inclusive'
     Output
         out_img: Either a nifti file, or a np array, depending on out_format.
     '''
@@ -139,8 +140,11 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file'):
         mask = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
     else:
         mask = mask.get_data()
-
-    data[mask!=1] = np.nan # mask
+    if inclu_exclu == 'exclusive':
+        data[mask!=1] = np.nan # mask
+    else:
+        assert(inclu_exclu == 'inclusive'), 'mask must be either inclusive or exclusive'
+        data[mask==1] = np.nan # mask
 
     if out_format == 'file':
         assert (work_dir != ''), 'You must give a value for work_dir'
