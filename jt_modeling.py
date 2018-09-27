@@ -1,19 +1,26 @@
-def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
+#TODO - set correct min and max header info of output image.
+def create_lvl2tfce_wf(mask=False):
     '''
     Input [Mandatory]:
-        ~~~~~~~~~~ Set as part of function call:
-        fwhm_list: list of strings representing smoothing kernels. ITERABLE.
+
+        ~~~~~~~~~~~ Set through inputs.inputspec
+
+        fwhm_list: list of strings representing smoothing kernels. Can be run iterably.
             'None' represents no smoothing.
             e.g. ['none', '1.5', '6']
+            ** Often you will want to input this with an iterable node.
 
-        full_cons: dictionary of each contrast. ITERABLE.
+        contrast: Character defining contrast name.
+            Name should match a dictionary entry in full_cons and con_regressors.
+            ** Often you will want to input this with an iterable node.
+
+        full_cons: dictionary of each contrast.
             Names should match con_regressors.
             Entries in format [('name', 'stat', [condition_list], [weight])]
             e.g. full_cons = {
                 '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
                 }
 
-        ~~~~~~~~~~~ Set through inputs.inputspec
         input_dir: string, representing directory to level1 data, modeled using TODO.
             e.g. inputs.inputspec.input_dir = '/home/neuro/data'
 
@@ -33,8 +40,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
                         }
                     }
         Input [Optional]:
-            mask_file: path to mask file. Must be in same space as functional data.
-                see jt_util.create_align_mask_wf
+            mask: [default: False] path to mask file. Must be in same space as functional data. # TODO - fix this.
                 e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks/amygdala_bl_flirt.nii.gz'
 
             sinker_subs: list of tuples, each containing a pair of strings.
@@ -62,22 +68,15 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
                 'mask_file',
                 'subject_list',
                 'con_regressors',
+                'full_cons',
                 'sinker_subs',
+                'fwhm',
+                'contrast'
                 ],
         mandatory_inputs=False),
                  name='inputspec')
 
-     # Create list from contrast dictionary.
-    def con_dic_to_list(full_cons):
-        con_list = []
-        for entry in list(full_cons.values())[:]:
-            con_list.append(entry[0][0])
-        return con_list
 
-    infosource = pe.Node(IdentityInterface(fields=['fwhm', 'contrast']),
-                name='infosource')
-    infosource.iterables = [('fwhm', fwhm_list),
-        ('contrast', con_dic_to_list(full_cons))]
 
     ################## Make template
     def get_template(fwhm, contrast, input_dir, output_dir, mask=False):
@@ -116,7 +115,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
                         name='make_template')
     # make_template.inputs.output_dir = from inputspec
     # make_template.inputs.input_dir = from inputspec
-    # make_template.inputs.fwhm # From infosource.
+    # make_template.inputs.fwhm # From inputspec.
 
     ################## Get contrast
     def get_con(contrast, full_cons, con_regressors):
@@ -174,13 +173,13 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
 
     ################## Setup Pipeline.
     lvl2tfce_wf.connect([
-        (infosource, make_template, [('fwhm', 'fwhm'),
-                                    ('contrast', 'contrast')]),
-        (inputspec, make_template, [('input_dir', 'input_dir'),
+        (inputspec, make_template, [('fwhm', 'fwhm'),
+                                    ('contrast', 'contrast'),
+                                    ('input_dir', 'input_dir'),
                                     ('output_dir', 'output_dir')]),
         (inputspec, get_model_info, [('full_cons', 'full_cons'),
                                     ('con_regressors', 'con_regressors')]),
-        (infosource, get_model_info, [('contrast', 'contrast')]),
+        (inputspec, get_model_info, [('contrast', 'contrast')]),
         (inputspec, get_copes, [('subject_list', 'subject_list')]),
         (make_template, get_copes, [('template', 'template')]),
         (get_copes, merge_copes, [('out_list', 'in_files')]),
@@ -190,7 +189,7 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
         (level2model, randomise, [('design_mat', 'design_mat')]),
         (level2model, randomise, [('design_con', 'tcon')]),
         ])
-    if use_mask:
+    if mask:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
             (inputspec, make_template, [('mask_file', 'mask')])
@@ -215,6 +214,9 @@ def create_lvl2tfce_wf(fwhm_list, full_cons, use_mask=False):
     return lvl2tfce_wf
 
 def create_lvl1pipe_wf(subject_list):
+    '''
+    TODO - write instructions.
+    '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
     import os
