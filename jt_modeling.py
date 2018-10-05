@@ -1,4 +1,3 @@
-#TODO - set correct min and max header info of output image.
 def create_lvl2tfce_wf(mask=False):
     '''
     Input [Mandatory]:
@@ -181,6 +180,17 @@ def create_lvl2tfce_wf(mask=False):
     randomise.inputs.vox_p_values = True
     # randomise.inputs.num_perm = 5000
 
+    def adj_minmax(in_file):
+        import nibabel as nib
+        import numpy as np
+        import os
+        img = nib.load(in_file[0])
+        data = img.get_data()
+        img.header['cal_max'] = np.max(data)
+        img.header['cal_min'] = np.min(data)
+        nib.save(img, in_file[0])
+        return in_file
+
     ################## Setup Pipeline.
     lvl2tfce_wf.connect([
         (inputspec, make_outdir, [('output_dir', 'output_dir')]),
@@ -218,8 +228,10 @@ def create_lvl2tfce_wf(mask=False):
         (level2model, sinker, [('design_con', 'out.@con')]),
         (level2model, sinker, [('design_grp', 'out.@grp')]),
         (level2model, sinker, [('design_mat', 'out.@mat')]),
-        (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
-        (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
+        (randomise, sinker, [(('t_corrected_p_files', adj_minmax), 'out.@t_cor_p')]),
+        (randomise, sinker, [(('tstat_files', adj_minmax), 'out.@t_stat')]),
+        # (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
+        # (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
         (inputspec, sinker, [('mask_file', 'out.@mask')]),
         ])
     return lvl2tfce_wf
