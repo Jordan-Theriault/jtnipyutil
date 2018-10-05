@@ -58,7 +58,6 @@ def create_lvl2tfce_wf(mask=False):
     import os
     from nipype import IdentityInterface
     from nipype.interfaces.utility.wrappers import Function
-
     ##################  Setup workflow.
     lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
 
@@ -79,16 +78,28 @@ def create_lvl2tfce_wf(mask=False):
 
 
     ################## Make template
-    def get_template(fwhm, contrast, input_dir, output_dir, mask=False):
+    def mk_outdir(output_dir, mask=False):
         import os
         from time import gmtime, strftime
         time_suffix = '_'+strftime("%Y-%m-%d_%Hh-%Mm", gmtime())
-        # makes template to grab copes files, based on the smoothing kernel being processed.
         if mask:
-            output_dir = os.path.join(output_dir, mask.split('/')[-1].split('.')[0]+time_suffix)
+            new_out_dir = os.path.join(output_dir, mask.split('/')[-1].split('.')[0]+time_suffix)
         else:
-            output_dir = os.path.join(output_dir, 'wholebrain'+time_suffix)
+            new_out_dir = os.path.join(output_dir, 'wholebrain'+time_suffix)
+        if not os.path.isdir(new_out_dir):
+            os.makedirs(new_out_dir)
+        return new_out_dir
 
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'mask'],
+                                   output_names=['new_out_dir'],
+                                   function=mk_outdir),
+                          name='make_outdir')
+    # make_template.inputs.output_dir = from inputspec
+    # make_template.inputs.mask = from inputspec
+
+    def get_template(fwhm, contrast, input_dir, output_dir):
+        import os
+        # makes template to grab copes files, based on the smoothing kernel being processed.
         if fwhm == 'none':
             con_file = 'cope'+contrast+'.nii.gz'
             template={
@@ -108,12 +119,11 @@ def create_lvl2tfce_wf(mask=False):
             os.makedirs(out_path)
         return template, out_path
 
-    from nipype.interfaces.utility.wrappers import Function
     make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir', 'output_dir'],
-                                output_names=['template', 'out_path'],
-                                function=get_template),
-                        name='make_template')
-    # make_template.inputs.output_dir = from inputspec
+                                     output_names=['template', 'out_path'],
+                                     function=get_template),
+                            name='make_template')
+    # make_template.inputs.output_dir = from make_outdir
     # make_template.inputs.input_dir = from inputspec
     # make_template.inputs.fwhm # From inputspec.
 
@@ -124,9 +134,9 @@ def create_lvl2tfce_wf(mask=False):
         return con_info, reg_info
 
     get_model_info = pe.Node(Function(input_names=['contrast', 'full_cons', 'con_regressors'],
-                                output_names=['con_info', 'reg_info'],
-                                function=get_con),
-                        name='get_model_info')
+                                      output_names=['con_info', 'reg_info'],
+                                      function=get_con),
+                             name='get_model_info')
     # get_model_info.inputs.full_cons = From inputspec
     # get_model_info.inputs.full_regs = From inputspec
 
@@ -173,10 +183,11 @@ def create_lvl2tfce_wf(mask=False):
 
     ################## Setup Pipeline.
     lvl2tfce_wf.connect([
+        (inputspec, make_outdir, [('output_dir', 'output_dir')]),
+        (make_outdir, make_template, [('new_out_dir', 'output_dir')]),
         (inputspec, make_template, [('fwhm', 'fwhm'),
                                     ('contrast', 'contrast'),
-                                    ('input_dir', 'input_dir'),
-                                    ('output_dir', 'output_dir')]),
+                                    ('input_dir', 'input_dir')]),
         (inputspec, get_model_info, [('full_cons', 'full_cons'),
                                     ('con_regressors', 'con_regressors')]),
         (inputspec, get_model_info, [('contrast', 'contrast')]),
@@ -192,7 +203,7 @@ def create_lvl2tfce_wf(mask=False):
     if mask:
         lvl2tfce_wf.connect([
             (inputspec, randomise, [('mask_file', 'mask')]),
-            (inputspec, make_template, [('mask_file', 'mask')])
+            (inputspec, make_outdir, [('mask_file', 'mask')])
             ])
 
     ################## Setup datasink.
