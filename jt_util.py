@@ -1,3 +1,41 @@
+
+def align_mask(mask_file, native_brain, ref_brain, work_dir):
+    '''
+    Aligns a mask to a reference space, given a native-space brain and reference space brain.
+
+    Input [Mandatory]:
+    mask_file: string, giving file path to binary nifti file.
+    native_brain: string, giving file path to T1 brain in mask space.
+    ref_brain: string, giving file path to T1 brain in reference space.
+    work_dir: string, representing directory to save output to.
+
+    Output:
+        aligned_mask: mask .nii.gz file aligned to reference space.
+    '''
+    import nibabel as nb
+    import nipype.pipeline.engine as pe # pypeline engine
+    import nipype.interfaces.fsl as fsl
+    import os
+
+    # wf = pe.Workflow(name='align_mask')
+    fit_brain = pe.Node(fsl.FLIRT(),
+                        name='fit_brain')
+    fit_brain.inputs.in_file = native_brain
+    fit_brain.inputs.reference = ref_brain
+    fit_brain.inputs.out_matrix_file = os.path.join(work_dir, mask_file.split('/')[-1]+'_matrix')
+    fit_brain.run()
+
+    fit_mask = pe.Node(fsl.FLIRT(),
+                       name='fit_mask')
+
+    fit_mask.inputs.in_file = mask_file
+    fit_mask.inputs.reference = ref_brain
+    fit_mask.inputs.in_matrix_file = os.path.join(work_dir, mask_file.split('/')[-1]+'_matrix')
+    fit_mask.inputs.apply_xfm = True
+    fit_mask.inputs.out_file = os.path.join('/'.join(mask_file.split('/')[0:-1]), 'ALIGN_'+mask_file.split('/')[-1])
+    fit_mask.run()
+
+
 def create_grandmean_img_wf():
     '''
     Creates a workflow, which creates a grand mean image, averaging within each file, then across all images given.
