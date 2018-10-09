@@ -20,7 +20,7 @@ def create_lvl2tfce_wf(mask=False):
                 '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
                 }
 
-        input_dir: string, representing directory to level1 data, modeled using TODO.
+        input_dir: string, representing directory to level1 data, modeled using jt_modeling.create_lvl1pipe_wf.
             e.g. inputs.inputspec.input_dir = '/home/neuro/data'
 
         output_dir: string, representing directory of output.
@@ -39,7 +39,7 @@ def create_lvl2tfce_wf(mask=False):
                         }
                     }
         Input [Optional]:
-            mask: [default: False] path to mask file. Must be in same space as functional data. # TODO - fix this.
+            mask: [default: False] path to mask file. Must be in same space as functional data.
                 e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks/amygdala_bl_flirt.nii.gz'
 
             sinker_subs: list of tuples, each containing a pair of strings.
@@ -73,8 +73,8 @@ def create_lvl2tfce_wf(mask=False):
                 ],
         mandatory_inputs=False),
                  name='inputspec')
-
-
+    if mask:
+        inputspec.inputs.mask_file = mask
 
     ################## Make template
     def mk_outdir(output_dir, mask=False):
@@ -168,6 +168,31 @@ def create_lvl2tfce_wf(mask=False):
     # level2model.inputs.contrasts # from get_con_info
     # level2model.inputs.regressors # from get_con_info
 
+    ################## Fit mask, if given 2 design.
+    if mask:
+        def fit_msk(mask_file, ref_file):
+            import numpy as np
+            import nibabel as nib
+            import os
+            from scipy.ndimage import zoom
+            mask = nib.load(mask_file)
+            ref = nib.load(ref_file)
+            if mask.shape != ref.shape[0:3]:
+                interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
+                data = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+                out_mask = nib.Nifti1Image(data, ref.affine, ref.header)
+                out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
+                out_mask.header['cal_min'] = np.min(data)
+                nib.save(out_mask, os.path.abspath(mask_file + '_fit.nii.gz'))
+                out_mask = os.path.abspath(mask_file + '_fit.nii.gz')
+            return out_mask
+    if mask:
+        fit_mask = pe.Node(Function(
+            input_names=['mask_file', 'ref_file'],
+            output_names=['out_mask'],
+            function=fit_msk),
+                            name='fit_mask')
+
     ################## FSL Randomize.
     randomise = pe.Node(interface=fsl.Randomise(), name = 'randomise')
     # randomise.inputs.in_file = #From merge_copes
@@ -191,6 +216,12 @@ def create_lvl2tfce_wf(mask=False):
         nib.save(img, in_file[0])
         return in_file
 
+    ################## Setup datasink.
+    from nipype.interfaces.io import DataSink
+    import os
+    # sinker = pe.Node(DataSink(parameterization=False), name='sinker')
+    sinker = pe.Node(DataSink(parameterization=True), name='sinker')
+
     ################## Setup Pipeline.
     lvl2tfce_wf.connect([
         (inputspec, make_outdir, [('output_dir', 'output_dir')]),
@@ -212,15 +243,12 @@ def create_lvl2tfce_wf(mask=False):
         ])
     if mask:
         lvl2tfce_wf.connect([
-            (inputspec, randomise, [('mask_file', 'mask')]),
-            (inputspec, make_outdir, [('mask_file', 'mask')])
+            (inputspec, fit_mask, [('mask_file', 'mask_file')]),
+            (merge_copes, fit_mask, [('merged_file', 'ref_file')]),
+            (fit_mask, randomise, [('out_mask', 'mask')]),
+            (inputspec, make_outdir, [('mask_file', 'mask')]),
+            (fit_mask, sinker, [('out_mask', 'out.@mask')]),
             ])
-
-    ################## Setup datasink.
-    from nipype.interfaces.io import DataSink
-    import os
-    # sinker = pe.Node(DataSink(parameterization=False), name='sinker')
-    sinker = pe.Node(DataSink(parameterization=True), name='sinker')
 
     lvl2tfce_wf.connect([
         (inputspec, sinker, [('sinker_subs', 'substitutions')]),
@@ -232,7 +260,6 @@ def create_lvl2tfce_wf(mask=False):
         (randomise, sinker, [(('tstat_files', adj_minmax), 'out.@t_stat')]),
         # (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
         # (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
-        (inputspec, sinker, [('mask_file', 'out.@mask')]),
         ])
     return lvl2tfce_wf
 
