@@ -39,7 +39,7 @@ def create_lvl2tfce_wf(mask=False):
                         }
                     }
         Input [Optional]:
-            mask: [default: False] path to mask file. Must be in same space as functional data.
+            mask: [default: False] path to mask file. Can have different dimensions from functional data, but should obviously be in the same reference space if anatomical (see jt_util.align_mask).
                 e.g. inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/realigned_masks/amygdala_bl_flirt.nii.gz'
 
             sinker_subs: list of tuples, each containing a pair of strings.
