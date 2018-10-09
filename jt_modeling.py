@@ -80,11 +80,11 @@ def create_lvl2tfce_wf(mask=False):
     def mk_outdir(output_dir, mask=False):
         import os
         from time import gmtime, strftime
-        time_suffix = '_'+strftime("%Y-%m-%d_%Hh-%Mm", gmtime())
+        time_prefix = strftime("%Y-%m-%d_%Hh-%Mm", gmtime())+'_'
         if mask:
-            new_out_dir = os.path.join(output_dir, mask.split('/')[-1].split('.')[0]+time_suffix)
+            new_out_dir = os.path.join(output_dir, time_prefix + mask.split('/')[-1].split('.')[0])
         else:
-            new_out_dir = os.path.join(output_dir, 'wholebrain'+time_suffix)
+            new_out_dir = os.path.join(output_dir, 'wholebrain' + time_suffix)
         if not os.path.isdir(new_out_dir):
             os.makedirs(new_out_dir)
         return new_out_dir
