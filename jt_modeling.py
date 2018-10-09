@@ -263,9 +263,19 @@ def create_lvl2tfce_wf(mask=False):
         ])
     return lvl2tfce_wf
 
-def create_lvl1pipe_wf(subject_list):
+
+
+
+
+def create_lvl1pipe_wf():
     '''
-    TODO - write instructions.
+    Input [Mandatory]:
+
+        ~~~~~~~~~~~ Set through inputs.inputspec
+        task_name: string, with BIDS task name.
+            e.g. for sub-001_task-stress_bold.nii.gz, the task name is 'stress'
+        'input_dir'
+
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
@@ -277,23 +287,36 @@ def create_lvl1pipe_wf(subject_list):
     lvl1pipe_wf = pe.Workflow(name='lvl_one_pipe')
 
     inputspec = pe.Node(IdentityInterface(
-        fields=['input_dir', #TODO - FIX
-                'output_dir', #TODO - FIX
-                'mask_file', #TODO - FIX
-                'subject_list', #TODO - FIX
-                'con_regressors', #TODO - FIX
-                'sinker_subs', #TODO - FIX
+        fields=['task_name',
+                'input_dir',
+                'output_dir',
+                'design_col',
+                'templates',
+                'options',
+                'noise_regressors',
+                'noise_transforms',
+                'susan_intensity',
+                'TR', # in seconds.
+                'FILM_threshold',
+                'hpf_cutoff',
+                'contrasts',
+                'bases',
+                'model_serial_correlations',
+                'sinker_subs',
+                'subject_id',
+                'fwhm',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
 
-    infosource = pe.Node(IdentityInterface(fields=['subject_id']),
-                     name='infosource')
-    infosource.iterables = [('subject_id', subject_list)]
+    # infosource = pe.Node(IdentityInterface(fields=['subject_id']),
+    #                  name='infosource')
+    # infosource.iterables = [('subject_id', subject_list),
+    #                         ('fwhm_list', fwhm_list)]
 
     ################## Select Files
     data_grab = pe.Node(SelectFiles(templates), name='data_grab')
-    data_grab.inputs.base_directory  = study_dir #TODO - set in workflow
+    # data_grab.inputs.base_directory  = study_dir # from infosource
     # data_grab.inputs.subject_id # From infosource
 
     ################## Setup confounds
@@ -329,10 +352,10 @@ def create_lvl1pipe_wf(subject_list):
                                   function=get_terms),
                          name='get_confounds')
     # get_confounds.inputs.confound_file =  # From data_grab
-    get_confounds.inputs.noise_transforms =  noise_transforms #TODO - set in workflow
-    get_confounds.inputs.noise_regressors =  noise_regressors #TODO - set in workflow
-    get_confounds.inputs.TR = TR #TODO - set in workflow
-    get_confounds.inputs.options = options #TODO - set in workflow
+    # get_confounds.inputs.noise_transforms =  # From inputspec
+    # get_confounds.inputs.noise_regressors =  # From inputspec
+    # get_confounds.inputs.TR =  # From inputspec
+    # get_confounds.inputs.options =  # From inputspec
 
     ################## Create bunch to run FSL first level model.
     def get_subj_info(task_file, design_col, confounds, params):
@@ -360,8 +383,28 @@ def create_lvl1pipe_wf(subject_list):
                          name='make_bunch')
     # make_bunch.inputs.task_file =  # From data_grab
     # make_bunch.inputs.confounds =  # From get_confounds
-    make_bunch.inputs.design_col = design_col #TODO - set in workflow
-    make_bunch.inputs.params = params #TODO - set in workflow
+    # make_bunch.inputs.design_col =  # From inputspec
+    # make_bunch.inputs.params =  # From inputspec
+
+    def mk_outdir(output_dir, options):
+        import os
+        from time import gmtime, strftime
+        time_prefix = strftime("%Y-%m-%d_%Hh-%Mm", gmtime())
+        if options['smooth']:
+            new_out_dir = os.path.join(output_dir, time_prefix, 'smooth')
+        else:
+            new_out_dir = os.path.join(output_dir, time_prefix, 'nosmooth')
+        if not os.path.isdir(new_out_dir):
+            os.makedirs(new_out_dir)
+        return new_out_dir
+
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'mask'],
+                                   output_names=['new_out_dir'],
+                                   function=mk_outdir),
+                          name='make_outdir')
+    # make_template.inputs.output_dir = from inputspec
+    # make_template.inputs.options = from inputspec
+
 
     ################## Mask functional data.
     from nipype.interfaces.fsl.maths import ApplyMask
@@ -385,7 +428,7 @@ def create_lvl1pipe_wf(subject_list):
     intensitymask = pe.Node(MathsCommand(),
                            name='intensitymask')
     # intensitymask.inputs.in_file = # from maskBold
-    intensitymask.inputs.args = susan_intensity #TODO - set in workflow
+    # intensitymask.inputs.susan_intensity =  # From inputspec
 
     from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
     smooth_wf = create_susan_smooth()
@@ -395,11 +438,11 @@ def create_lvl1pipe_wf(subject_list):
     ################## Model Generation.
     import nipype.algorithms.modelgen as model # FSL Specify Model - generate design information
     specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
-    specify_model.inputs.high_pass_filter_cutoff = hpf_cutoff #TODO - set in workflow
-    specify_model.inputs.input_units = 'secs' #TODO - set in workflow
-    specify_model.inputs.time_repetition = TR #TODO - set in workflow
+    specify_model.inputs.input_units = 'secs'
     # specify_model.functional_runs # From data_grab
     # specify_model.subject_info # From subject_info
+    # specify_model.high_pass_filter_cutoff # From infosource
+    # specify_model.time_repetition # From infosource
 
     ################## Estimate workflow
     from nipype.workflows.fmri.fsl import estimate # fsl workflow
@@ -407,39 +450,52 @@ def create_lvl1pipe_wf(subject_list):
     modelfit.base_dir = '.'
     # modelfit.inputs.inputspec.session_info = # From specify_model
     # modelfit.inputs.inputspec.functional_data = # from maskBold
-    modelfit.inputs.inputspec.interscan_interval = TR #TODO - set in workflow
-    modelfit.inputs.inputspec.film_threshold = FILM_threshold #TODO - set in workflow
-    modelfit.inputs.inputspec.bases = bases #TODO - set in workflow
-    modelfit.inputs.inputspec.model_serial_correlations = model_serial_correlations #TODO - set in workflow
-    modelfit.inputs.inputspec.contrasts = contrasts #TODO - set in workflow
+    # modelfit.inputs.inputspec.interscan_interval = # From infosource
+    # modelfit.inputs.inputspec.film_threshold = # From infosource
+    # modelfit.inputs.inputspec.bases = # From infosource
+    # modelfit.inputs.inputspec.model_serial_correlations = # From infosource
+    # modelfit.inputs.inputspec.contrasts = # From infosource
 
     ################## DataSink
     from nipype.interfaces.io import DataSink
     import os.path
     sinker = pe.Node(DataSink(), name='sinker')
-    sinker.inputs.substitutions = sinker_substitutions #TODO - set in workflow
-    if options['smooth']:
-        sinker.inputs.base_directory = os.path.join(output_dir, 'smooth')
-        if not os.path.isdir(sinker.inputs.base_directory):
-            os.mkdir(sinker.inputs.base_directory)
-    else:
-        sinker.inputs.base_directory = os.path.join(output_dir, 'nosmooth')
-        if not os.path.isdir(sinker.inputs.base_directory):
-            os.mkdir(sinker.inputs.base_directory)
+    # sinker.inputs.substitutions = # From infosource
+    # sinker.inputs.base_directory = # frm make_outdir
 
     lvl1pipe_wf.connect([
         # grab subject/run info
-        (infosource, data_grab, [('subject_id', 'subject_id')]),
+        (infosource, data_grab, [('subject_id', 'subject_id'),
+                                 ('input_dir', 'base_directory'),
+                                 ('subj_id', 'subject_id')]),
+        (infosource, get_confounds, [('noise_transforms', 'noise_transforms'),
+                                     ('noise_regressors', 'noise_regressors'),
+                                     ('TR', 'TR'),
+                                     ('options', 'options')]),
+        (infosource, make_bunch, [('design_col', 'design_col'),
+                                  ('params', 'params')]),
+        (infosource, make_outdir, [('output_dir', 'output_dir'),
+                                   ('options', 'options')]),
+        (infosource, intensitymask, [('susan_intensity', 'susan_intensity')]),
+        (infosource, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
+                                     ('TR', 'time_repetition')]),
+        (infosource, modelfit, [('TR', 'inputspec.interscan_interval'),
+                                ('FILM_threshold', 'inputspec.film_threshold'),
+                                ('bases', 'inputspec.bases'),
+                                ('model_serial_correlations', 'inputspec.model_serial_correlations'),
+                                ('contrasts', 'inputspec.contrasts')]),
         (data_grab, get_confounds, [('confound_file', 'confound_file')]),
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
         (data_grab, make_bunch, [('task', 'task_file')]),
         (make_bunch, specify_model, [('subject_info', 'subject_info')]),
         (data_grab, maskBold, [('bold', 'in_file'),
-                                 ('bold_mask', 'mask_file')])])
+                               ('bold_mask', 'mask_file')])
+        ])
 
     if options['censoring'] == 'despike':
         lvl1pipe_wf.connect([
-            (maskBold, despike, [('out_file', 'in_file')])])
+            (maskBold, despike, [('out_file', 'in_file')])
+            ])
         if options['smooth']:
             lvl1pipe_wf.connect([
                 (despike, intensitymask, [('out_file', 'in_file')]),
@@ -448,12 +504,14 @@ def create_lvl1pipe_wf(subject_list):
                 (intensitymask, sinker, [('out_file', 'smoothing')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
-                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])])
+                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
+                ])
         else:
             lvl1pipe_wf.connect([
-                (despike, specify_model, [('out_file', 'functional_runs')])]
-                (despike, modelfit, [('out_file', 'inputspec.functional_data')]))
-            #TODO connect despike to sinker, to check output.
+                (despike, specify_model, [('out_file', 'functional_runs')]),
+                (despike, modelfit, [('out_file', 'inputspec.functional_data')]),
+                (despike, sinker, [('out_file', 'despike')])
+                ])
     else:
         if options['smooth']:
             lvl1pipe_wf.connect([
@@ -463,17 +521,21 @@ def create_lvl1pipe_wf(subject_list):
                 (intensitymask, sinker, [('out_file', 'smoothing')]),
                 (maskBold, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
-                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])])
+                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
+                ])
         else:
             lvl1pipe_wf.connect([
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
-                (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])])
+                (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
+                ])
 
     lvl1pipe_wf.connect([
         (specify_model, modelfit, [('session_info', 'inputspec.session_info')]),
-        (infosource, sinker, [('subject_id','container')]), # creates folder for each subject.
+        (infosource, sinker, [('subject_id','container'),
+                              ('substitutions', 'substitutions')]), # creates folder for each subject.
+        (make_outdir, sinker, [('new_out_dir', 'base_directory')]),
         (modelfit, sinker, [('outputspec.dof_file','model.@dof'), #.@ puts this in the par folder.
-                            ('outputspec.parameter_estimates', 'model'), #TODO - grab design .mat file.
+                            ('outputspec.parameter_estimates', 'model'),
                             ('outputspec.copes','model.@copes'),
                             ('outputspec.varcopes','model.@varcopes'),
                             ('outputspec.zfiles','stats'),
