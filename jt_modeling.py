@@ -142,10 +142,14 @@ def create_lvl2tfce_wf(mask=False):
     ################## Get files
     def get_files(subject_list, template):
         import glob
+        temp_list = []
         out_list = []
         for x in glob.glob(list(template.values())[0]):
             if any(subj in x for subj in subject_list):
-                out_list.append(x)
+                temp_list.append(x)
+        for file in temp_list: # ensure no duplicate entries.
+            if file not in out_list:
+                out_list.append(file)
         return out_list
 
     get_copes = pe.Node(Function(
@@ -267,14 +271,15 @@ def create_lvl2tfce_wf(mask=False):
 
 
 
-def create_lvl1pipe_wf():
+def create_lvl1pipe_wf(options):
     '''
     Input [Mandatory]:
 
+        ~~~~~~~~~~~ Set in command call:
+
+        options:
+
         ~~~~~~~~~~~ Set through inputs.inputspec
-        task_name: string, with BIDS task name.
-            e.g. for sub-001_task-stress_bold.nii.gz, the task name is 'stress'
-        'input_dir'
 
     '''
     import nipype.pipeline.engine as pe # pypeline engine
@@ -287,37 +292,67 @@ def create_lvl1pipe_wf():
     lvl1pipe_wf = pe.Workflow(name='lvl_one_pipe')
 
     inputspec = pe.Node(IdentityInterface(
-        fields=['task_name',
-                'input_dir',
+        fields=['input_dir',
                 'output_dir',
                 'design_col',
-                'templates',
-                'options',
                 'noise_regressors',
                 'noise_transforms',
                 'susan_intensity',
                 'TR', # in seconds.
                 'FILM_threshold',
                 'hpf_cutoff',
+                'params',
                 'contrasts',
                 'bases',
                 'model_serial_correlations',
                 'sinker_subs',
+                'bold_template',
+                'mask_template',
+                'task_template',
+                'confound_template',
                 'subject_id',
                 'fwhm',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
 
-    # infosource = pe.Node(IdentityInterface(fields=['subject_id']),
-    #                  name='infosource')
-    # infosource.iterables = [('subject_id', subject_list),
-    #                         ('fwhm_list', fwhm_list)]
-
     ################## Select Files
-    data_grab = pe.Node(SelectFiles(templates), name='data_grab')
-    # data_grab.inputs.base_directory  = study_dir # from infosource
-    # data_grab.inputs.subject_id # From infosource
+    def get_file(subj_id, template):
+        import glob
+        temp_list = []
+        out_list = []
+        for x in glob.glob(list(template.values())[0]):
+            if any(subj in x for subj in subj_id):
+                temp_list.append(x)
+        for file in temp_list: # ensure no duplicate entries.
+            if file not in out_list:
+                out_list.append(file)
+        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. Either no data, or multiple files were found.'
+        out_file = out_list[0]
+        return out_file
+
+    get_bold = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_list'],
+        function=get_file),
+                        name='get_bold')
+    get_mask = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_list'],
+        function=get_file),
+                        name='get_mask')
+    get_task = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_list'],
+        function=get_file),
+                        name='get_task')
+    get_confile = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_list'],
+        function=get_file),
+                        name='get_confile')
+    # get_bold.inputs.subj_id # From inputspec
+    # get_bold.inputs.templates # From inputspec
 
     ################## Setup confounds
     def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
@@ -351,11 +386,11 @@ def create_lvl1pipe_wf():
                                  output_names=['confounds'],
                                   function=get_terms),
                          name='get_confounds')
-    # get_confounds.inputs.confound_file =  # From data_grab
+    # get_confounds.inputs.confound_file =  # From get_confile
     # get_confounds.inputs.noise_transforms =  # From inputspec
     # get_confounds.inputs.noise_regressors =  # From inputspec
     # get_confounds.inputs.TR =  # From inputspec
-    # get_confounds.inputs.options =  # From inputspec
+    get_confounds.inputs.options = options
 
     ################## Create bunch to run FSL first level model.
     def get_subj_info(task_file, design_col, confounds, params):
@@ -381,7 +416,7 @@ def create_lvl1pipe_wf():
                                  output_names=['subject_info'],
                                   function=get_subj_info),
                          name='make_bunch')
-    # make_bunch.inputs.task_file =  # From data_grab
+    # make_bunch.inputs.task_file =  # From get_task
     # make_bunch.inputs.confounds =  # From get_confounds
     # make_bunch.inputs.design_col =  # From inputspec
     # make_bunch.inputs.params =  # From inputspec
@@ -398,20 +433,20 @@ def create_lvl1pipe_wf():
             os.makedirs(new_out_dir)
         return new_out_dir
 
-    make_outdir = pe.Node(Function(input_names=['output_dir', 'mask'],
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'options'],
                                    output_names=['new_out_dir'],
                                    function=mk_outdir),
                           name='make_outdir')
-    # make_template.inputs.output_dir = from inputspec
-    # make_template.inputs.options = from inputspec
+    # make_outdir.inputs.output_dir = from inputspec
+    make_outdir.inputs.options = options
 
 
     ################## Mask functional data.
     from nipype.interfaces.fsl.maths import ApplyMask
     maskBold = pe.Node(ApplyMask(),
                       name='maskBold')
-    # maskBold.inputs.in_file # From data_grab
-    # maskBold.inputs.mask_file # From data_grab
+    # maskBold.inputs.in_file # From get_bold
+    # maskBold.inputs.mask_file # From get_mask
 
     ################## Despike
     from nipype.interfaces.afni import Despike
@@ -421,28 +456,25 @@ def create_lvl1pipe_wf():
 
     ################## Susan smooth
     from nipype.interfaces.fsl.maths import MathsCommand
-    smoothsource = pe.Node(IdentityInterface(fields=['fwhm']),
-                     name='smoothsource')
-    smoothsource.iterables = [('fwhm', fwhm_list)]
 
     intensitymask = pe.Node(MathsCommand(),
                            name='intensitymask')
     # intensitymask.inputs.in_file = # from maskBold
-    # intensitymask.inputs.susan_intensity =  # From inputspec
+    # intensitymask.inputs.args =  # From inputspec
 
     from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
     smooth_wf = create_susan_smooth()
     # smooth_wf.inputs.inputnode.in_files = # from maskBold
-    # smooth_wf.inputs.inputnode.fwhm = # from smoothsource
+    # smooth_wf.inputs.inputnode.fwhm = # from inputspec
 
     ################## Model Generation.
     import nipype.algorithms.modelgen as model # FSL Specify Model - generate design information
     specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
     specify_model.inputs.input_units = 'secs'
-    # specify_model.functional_runs # From data_grab
+    # specify_model.functional_runs # From maskBold, despike, or smooth_wf
     # specify_model.subject_info # From subject_info
-    # specify_model.high_pass_filter_cutoff # From infosource
-    # specify_model.time_repetition # From infosource
+    # specify_model.high_pass_filter_cutoff # From inputspec
+    # specify_model.time_repetition # From inputspec
 
     ################## Estimate workflow
     from nipype.workflows.fmri.fsl import estimate # fsl workflow
@@ -450,46 +482,48 @@ def create_lvl1pipe_wf():
     modelfit.base_dir = '.'
     # modelfit.inputs.inputspec.session_info = # From specify_model
     # modelfit.inputs.inputspec.functional_data = # from maskBold
-    # modelfit.inputs.inputspec.interscan_interval = # From infosource
-    # modelfit.inputs.inputspec.film_threshold = # From infosource
-    # modelfit.inputs.inputspec.bases = # From infosource
-    # modelfit.inputs.inputspec.model_serial_correlations = # From infosource
-    # modelfit.inputs.inputspec.contrasts = # From infosource
+    # modelfit.inputs.inputspec.interscan_interval = # From inputspec
+    # modelfit.inputs.inputspec.film_threshold = # From inputspec
+    # modelfit.inputs.inputspec.bases = # From inputspec
+    # modelfit.inputs.inputspec.model_serial_correlations = # From inputspec
+    # modelfit.inputs.inputspec.contrasts = # From inputspec
 
     ################## DataSink
     from nipype.interfaces.io import DataSink
     import os.path
     sinker = pe.Node(DataSink(), name='sinker')
-    # sinker.inputs.substitutions = # From infosource
+    # sinker.inputs.substitutions = # From inputspec
     # sinker.inputs.base_directory = # frm make_outdir
 
     lvl1pipe_wf.connect([
         # grab subject/run info
-        (infosource, data_grab, [('subject_id', 'subject_id'),
-                                 ('input_dir', 'base_directory'),
-                                 ('subj_id', 'subject_id')]),
-        (infosource, get_confounds, [('noise_transforms', 'noise_transforms'),
+        (inputspec, get_bold, [('subject_id', 'subj_id'),
+                                ('bold_template', 'template')]),
+        (inputspec, get_mask, [('subject_id', 'subj_id'),
+                                ('mask_template', 'template')]),
+        (inputspec, get_task, [('subject_id', 'subj_id'),
+                                ('task_template', 'template')]),
+        (inputspec, get_confile, [('subject_id', 'subj_id'),
+                                ('confound_template', 'template')]),
+        (inputspec, get_confounds, [('noise_transforms', 'noise_transforms'),
                                      ('noise_regressors', 'noise_regressors'),
-                                     ('TR', 'TR'),
-                                     ('options', 'options')]),
-        (infosource, make_bunch, [('design_col', 'design_col'),
+                                     ('TR', 'TR')]),
+        (inputspec, make_bunch, [('design_col', 'design_col'),
                                   ('params', 'params')]),
-        (infosource, make_outdir, [('output_dir', 'output_dir'),
-                                   ('options', 'options')]),
-        (infosource, intensitymask, [('susan_intensity', 'susan_intensity')]),
-        (infosource, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
+        (inputspec, make_outdir, [('output_dir', 'output_dir')]),
+        (inputspec, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
                                      ('TR', 'time_repetition')]),
-        (infosource, modelfit, [('TR', 'inputspec.interscan_interval'),
+        (inputspec, modelfit, [('TR', 'inputspec.interscan_interval'),
                                 ('FILM_threshold', 'inputspec.film_threshold'),
                                 ('bases', 'inputspec.bases'),
                                 ('model_serial_correlations', 'inputspec.model_serial_correlations'),
                                 ('contrasts', 'inputspec.contrasts')]),
-        (data_grab, get_confounds, [('confound_file', 'confound_file')]),
+        (get_confile, get_confounds, [('out_file', 'confound_file')]),
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
-        (data_grab, make_bunch, [('task', 'task_file')]),
+        (get_task, make_bunch, [('out_file', 'task_file')]),
         (make_bunch, specify_model, [('subject_info', 'subject_info')]),
-        (data_grab, maskBold, [('bold', 'in_file'),
-                               ('bold_mask', 'mask_file')])
+        (get_bold, maskBold, [('out_file', 'in_file')]),
+        (get_mask, maskBold, [('out_file', 'mask_file')]),
         ])
 
     if options['censoring'] == 'despike':
@@ -499,7 +533,8 @@ def create_lvl1pipe_wf():
         if options['smooth']:
             lvl1pipe_wf.connect([
                 (despike, intensitymask, [('out_file', 'in_file')]),
-                (smoothsource, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
+                (inputspec, intensitymask, [('susan_intensity', 'args')]),
+                (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
                 (intensitymask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (intensitymask, sinker, [('out_file', 'smoothing')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
@@ -516,7 +551,8 @@ def create_lvl1pipe_wf():
         if options['smooth']:
             lvl1pipe_wf.connect([
                 (maskBold, intensitymask, [('out_file', 'in_file')]),
-                (smoothsource, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
+                (inputspec, intensitymask, [('susan_intensity', 'args')]),
+                (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
                 (intensitymask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (intensitymask, sinker, [('out_file', 'smoothing')]),
                 (maskBold, smooth_wf, [('out_file', 'inputnode.in_files')]),
@@ -531,8 +567,8 @@ def create_lvl1pipe_wf():
 
     lvl1pipe_wf.connect([
         (specify_model, modelfit, [('session_info', 'inputspec.session_info')]),
-        (infosource, sinker, [('subject_id','container'),
-                              ('substitutions', 'substitutions')]), # creates folder for each subject.
+        (inputspec, sinker, [('subject_id','container'),
+                              ('sinker_subs', 'substitutions')]), # creates folder for each subject.
         (make_outdir, sinker, [('new_out_dir', 'base_directory')]),
         (modelfit, sinker, [('outputspec.dof_file','model.@dof'), #.@ puts this in the par folder.
                             ('outputspec.parameter_estimates', 'model'),
@@ -550,3 +586,4 @@ def create_lvl1pipe_wf():
                             ('modelestimate.fstats', 'stats.@fstats'),
                            ])
         ])
+    return lvl1pipe_wf
