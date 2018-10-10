@@ -322,7 +322,7 @@ def create_lvl1pipe_wf(options):
         temp_list = []
         out_list = []
         for x in glob.glob(list(template.values())[0]):
-            if any(subj in x for subj in subj_id):
+            if subj_id in x:
                 temp_list.append(x)
         for file in temp_list: # ensure no duplicate entries.
             if file not in out_list:
@@ -333,22 +333,22 @@ def create_lvl1pipe_wf(options):
 
     get_bold = pe.Node(Function(
         input_names=['subj_id', 'template'],
-        output_names=['out_list'],
+        output_names=['out_file'],
         function=get_file),
                         name='get_bold')
     get_mask = pe.Node(Function(
         input_names=['subj_id', 'template'],
-        output_names=['out_list'],
+        output_names=['out_file'],
         function=get_file),
                         name='get_mask')
     get_task = pe.Node(Function(
         input_names=['subj_id', 'template'],
-        output_names=['out_list'],
+        output_names=['out_file'],
         function=get_file),
                         name='get_task')
     get_confile = pe.Node(Function(
         input_names=['subj_id', 'template'],
-        output_names=['out_list'],
+        output_names=['out_file'],
         function=get_file),
                         name='get_confile')
     # get_bold.inputs.subj_id # From inputspec
