@@ -360,21 +360,24 @@ def create_lvl1pipe_wf(options):
         # TODO - allow transforms to apply selectively.
         import numpy as np
         import pandas as pd
-        tf_cf = confound_file
-        df_cf = pd.DataFrame(pd.read_csv(tf_cf, sep='\t', parse_dates=False))
+        df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
         confounds = df_cf[noise_regressors] # for output
-        base = df_cf[noise_regressors] # for transforms
-        TR_time = pd.Series(np.arange(0.0, TR*base.shape[0], TR)) # time series for derivatives.
+        transfrm_list = []
+        for entry in noise_regressors: # get entries marked with *, indicating they should be transformed.
+            if '*' in entry:
+                transfrm_list.append(entry.replace('*', ''))
+        transfrmd_cnfds = df_cf[transfrm_list] # for transforms
+        TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
         if 'quad' in noise_transforms:
-            quad = np.square(df_cf[noise_regressors])
+            quad = np.square(df_cf[transfrmd_cnfds])
             confounds = confounds.join(quad, rsuffix='_quad')
         if 'tderiv' in noise_transforms:
-            tderiv = pd.DataFrame(pd.Series(np.gradient(base[col]), TR_time)
-                                  for col in base).T
-            confounds = confounds.join(quad, rsuffix='_tderiv')
+            tderiv = pd.DataFrame(pd.Series(np.gradient(transfrmd_cnfds[col]), TR_time)
+                                  for col in transfrmd_cnfds).T
+            confounds = confounds.join(tderiv, rsuffix='_tderiv')
         if 'quadtderiv' in noise_transforms:
             quadtderiv = np.square(tderiv)
-            confounds = confounds.join(quad, rsuffix='_quadtderiv')
+            confounds = confounds.join(quadtderiv, rsuffix='_quadtderiv')
         if options['remove_steadystateoutlier']:
             confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]])
         if options['ICA_AROMA']:
