@@ -297,7 +297,6 @@ def create_lvl1pipe_wf(options):
                 'design_col',
                 'noise_regressors',
                 'noise_transforms',
-                'susan_intensity',
                 'TR', # in seconds.
                 'FILM_threshold',
                 'hpf_cutoff',
@@ -310,6 +309,8 @@ def create_lvl1pipe_wf(options):
                 'mask_template',
                 'task_template',
                 'confound_template',
+                'smooth_gm_mask_template',
+                'gmmask_args',
                 'subject_id',
                 'fwhm',
                 ],
@@ -353,6 +354,19 @@ def create_lvl1pipe_wf(options):
                         name='get_confile')
     # get_bold.inputs.subj_id # From inputspec
     # get_bold.inputs.templates # From inputspec
+    if options['smooth']:
+        get_gmmask = pe.Node(Function(
+            input_names=['subj_id', 'template'],
+            output_names=['out_file'],
+            function=get_file),
+                            name='get_gmmask')
+
+        mod_gmmask = pe.Node(fsl.maths.MathsCommand(),
+                                name='mod_gmmask')
+        # mod_gmmask.inputs.in_file = # from get_gmmask
+        # mod_gmmask.inputs.args = from inputspec
+
+
 
     ################## Setup confounds
     def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
@@ -456,14 +470,6 @@ def create_lvl1pipe_wf(options):
                       name='despike')
     # despike.inputs.in_file = # From Mask
 
-    ################## Susan smooth
-    from nipype.interfaces.fsl.maths import MathsCommand
-
-    intensitymask = pe.Node(MathsCommand(),
-                           name='intensitymask')
-    # intensitymask.inputs.in_file = # from maskBold
-    # intensitymask.inputs.args =  # From inputspec
-
     from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
     smooth_wf = create_susan_smooth()
     # smooth_wf.inputs.inputnode.in_files = # from maskBold
@@ -534,11 +540,13 @@ def create_lvl1pipe_wf(options):
             ])
         if options['smooth']:
             lvl1pipe_wf.connect([
-                (despike, intensitymask, [('out_file', 'in_file')]),
-                (inputspec, intensitymask, [('susan_intensity', 'args')]),
                 (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
-                (intensitymask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
-                (intensitymask, sinker, [('out_file', 'smoothing')]),
+                (inputspec, get_gmmask, [('subject_id', 'subj_id'),
+                                        ('smooth_gm_mask_template', 'template')]),
+                (get_gmmask, mod_gmmask, [('out_file', 'in_file')]),
+                (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
+                (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
+                (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
                 (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
@@ -552,11 +560,13 @@ def create_lvl1pipe_wf(options):
     else:
         if options['smooth']:
             lvl1pipe_wf.connect([
-                (maskBold, intensitymask, [('out_file', 'in_file')]),
-                (inputspec, intensitymask, [('susan_intensity', 'args')]),
                 (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
-                (intensitymask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
-                (intensitymask, sinker, [('out_file', 'smoothing')]),
+                (inputspec, get_gmmask, [('subject_id', 'subj_id'),
+                                        ('smooth_gm_mask_template', 'template')]),
+                (get_gmmask, mod_gmmask, [('out_file', 'in_file')]),
+                (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
+                (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
+                (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
                 (maskBold, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
                 (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
