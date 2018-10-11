@@ -357,7 +357,6 @@ def create_lvl1pipe_wf(options):
     ################## Setup confounds
     def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
         # # Add time derivs, quadratic terms, and quad time derives if requested.
-        # TODO - allow transforms to apply selectively.
         import numpy as np
         import pandas as pd
         df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
@@ -471,7 +470,7 @@ def create_lvl1pipe_wf(options):
     # smooth_wf.inputs.inputnode.fwhm = # from inputspec
 
     ################## Model Generation.
-    import nipype.algorithms.modelgen as model # FSL Specify Model - generate design information
+    import nipype.algorithms.modelgen as model # FSL Specify Model - generate design information #TODO - Do I need to change this to do a model with no events? i.e. to do resting state, or timecourse? I think we can run no contrasts, but test this.
     specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
     specify_model.inputs.input_units = 'secs'
     # specify_model.functional_runs # From maskBold, despike, or smooth_wf
