@@ -549,28 +549,28 @@ def create_lvl1pipe_wf(options):
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
         (get_task, make_bunch, [('out_file', 'task_file')]),
         (make_bunch, specify_model, [('subject_info', 'subject_info')]),
-        (get_bold, maskBold, [('out_file', 'in_file')]),
         (get_mask, maskBold, [('out_file', 'mask_file')]),
         ])
 
     if options['censoring'] == 'despike':
         lvl1pipe_wf.connect([
-            (maskBold, despike, [('out_file', 'in_file')])
+            (get_bold, despike, [('out_file', 'in_file')])
             ])
         if options['smooth']:
             lvl1pipe_wf.connect([
                 (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
                 (inputspec, get_gmmask, [('subject_id', 'subj_id'),
                                         ('smooth_gm_mask_template', 'template')]),
-                (get_gmmask, mod_gmmask, [('out_file', 'in_file')]),
+                (get_gmmask, fit_mask, [('out_file', 'mask_file')]),
+                (fit_mask, mod_gmmask, [('out_mask', 'in_file')]),
                 (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
+                (get_bold, fit_mask, [('out_file', 'ref_file')]),
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
-                (mod_gmmask, fit_mask, [('out_file', 'mask_file')]),
-                (get_bold, fit_mask, [('out_file', 'ref_file')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
-                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
+                (smooth_wf, maskBold, [('outputnode.smoothed_files', 'in_file')]),
+                (maskBold, specify_model, [('out_file', 'functional_runs')]),
+                (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
         else:
             lvl1pipe_wf.connect([
@@ -584,18 +584,20 @@ def create_lvl1pipe_wf(options):
                 (inputspec, smooth_wf, [('fwhm', 'inputnode.fwhm')]),
                 (inputspec, get_gmmask, [('subject_id', 'subj_id'),
                                         ('smooth_gm_mask_template', 'template')]),
-                (get_gmmask, mod_gmmask, [('out_file', 'in_file')]),
+                (get_gmmask, fit_mask, [('out_file', 'mask_file')]),
+                (fit_mask, mod_gmmask, [('out_mask', 'in_file')]),
                 (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
+                (get_bold, fit_mask, [('out_file', 'ref_file')]),
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
-                (mod_gmmask, fit_mask, [('out_file', 'mask_file')]),
-                (get_bold, fit_mask, [('out_file', 'ref_file')]),
-                (maskBold, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
-                (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
+                (get_bold, smooth_wf, [('out_file', 'inputnode.in_files')]),
+                (smooth_wf, maskBold, [('outputnode.smoothed_files', 'in_file')]),
+                (maskBold, specify_model, [('out_file', 'functional_runs')]),
+                (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
         else:
             lvl1pipe_wf.connect([
+                (get_bold, maskBold, [('out_file', 'in_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
