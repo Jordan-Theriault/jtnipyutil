@@ -361,12 +361,31 @@ def create_lvl1pipe_wf(options):
             function=get_file),
                             name='get_gmmask')
 
-        mod_gmmask = pe.Node(fsl.maths.MathsCommand(),
+        mod_gmmask = pe.Node(fsl.maths.MathsCommand(), # TODO add a node to adjust the mask to the functional size.
                                 name='mod_gmmask')
         # mod_gmmask.inputs.in_file = # from get_gmmask
         # mod_gmmask.inputs.args = from inputspec
-
-
+        def fit_msk(mask_file, ref_file):
+            import numpy as np
+            import nibabel as nib
+            import os
+            from scipy.ndimage import zoom
+            mask = nib.load(mask_file)
+            ref = nib.load(ref_file)
+            if mask.shape != ref.shape[0:3]:
+                interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
+                data = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+                out_mask = nib.Nifti1Image(data, ref.affine, ref.header)
+                out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
+                out_mask.header['cal_min'] = np.min(data)
+                nib.save(out_mask, os.path.abspath(mask_file + '_fit.nii.gz'))
+                out_mask = os.path.abspath(mask_file + '_fit.nii.gz')
+            return out_mask
+        fit_mask = pe.Node(Function(
+            input_names=['mask_file', 'ref_file'],
+            output_names=['out_mask'],
+            function=fit_msk),
+                            name='fit_mask')
 
     ################## Setup confounds
     def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
@@ -547,6 +566,8 @@ def create_lvl1pipe_wf(options):
                 (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
+                (mod_gmmask, fit_mask, [('out_file', 'mask_file')]),
+                (get_bold, fit_mask, [('out_file', 'ref_file')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
                 (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
@@ -567,6 +588,8 @@ def create_lvl1pipe_wf(options):
                 (inputspec, mod_gmmask, [('gmmask_args', 'args')]),
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
+                (mod_gmmask, fit_mask, [('out_file', 'mask_file')]),
+                (get_bold, fit_mask, [('out_file', 'ref_file')]),
                 (maskBold, smooth_wf, [('out_file', 'inputnode.in_files')]),
                 (smooth_wf, specify_model, [('outputnode.smoothed_files', 'functional_runs')]),
                 (smooth_wf, modelfit, [('outputnode.smoothed_files', 'inputspec.functional_data')])
