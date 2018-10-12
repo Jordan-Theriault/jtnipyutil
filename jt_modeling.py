@@ -313,6 +313,7 @@ def create_lvl1pipe_wf(options):
                 'gmmask_args',
                 'subject_id',
                 'fwhm',
+                'proj_name',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
@@ -361,7 +362,7 @@ def create_lvl1pipe_wf(options):
             function=get_file),
                             name='get_gmmask')
 
-        mod_gmmask = pe.Node(fsl.maths.MathsCommand(), # TODO add a node to adjust the mask to the functional size.
+        mod_gmmask = pe.Node(fsl.maths.MathsCommand(),
                                 name='mod_gmmask')
         # mod_gmmask.inputs.in_file = # from get_gmmask
         # mod_gmmask.inputs.args = from inputspec
@@ -456,22 +457,23 @@ def create_lvl1pipe_wf(options):
     # make_bunch.inputs.design_col =  # From inputspec
     # make_bunch.inputs.params =  # From inputspec
 
-    def mk_outdir(output_dir, options):
+    def mk_outdir(output_dir, options, 'proj_name'):
         import os
         from time import gmtime, strftime
-        time_prefix = strftime("%Y-%m-%d_%Hh-%Mm", gmtime())
+        prefix = proj_name)
         if options['smooth']:
-            new_out_dir = os.path.join(output_dir, time_prefix, 'smooth')
+            new_out_dir = os.path.join(output_dir, prefix, 'smooth')
         else:
-            new_out_dir = os.path.join(output_dir, time_prefix, 'nosmooth')
+            new_out_dir = os.path.join(output_dir, prefix, 'nosmooth')
         if not os.path.isdir(new_out_dir):
             os.makedirs(new_out_dir)
         return new_out_dir
 
-    make_outdir = pe.Node(Function(input_names=['output_dir', 'options'],
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'options', 'proj_name'],
                                    output_names=['new_out_dir'],
                                    function=mk_outdir),
                           name='make_outdir')
+    # make_outdir.inputs.proj_name = from inputspec
     # make_outdir.inputs.output_dir = from inputspec
     make_outdir.inputs.options = options
 
@@ -495,7 +497,7 @@ def create_lvl1pipe_wf(options):
     # smooth_wf.inputs.inputnode.fwhm = # from inputspec
 
     ################## Model Generation.
-    import nipype.algorithms.modelgen as model # FSL Specify Model - generate design information #TODO - Do I need to change this to do a model with no events? i.e. to do resting state, or timecourse? I think we can run no contrasts, but test this.
+    import nipype.algorithms.modelgen as model
     specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
     specify_model.inputs.input_units = 'secs'
     # specify_model.functional_runs # From maskBold, despike, or smooth_wf
@@ -537,7 +539,8 @@ def create_lvl1pipe_wf(options):
                                      ('TR', 'TR')]),
         (inputspec, make_bunch, [('design_col', 'design_col'),
                                   ('params', 'params')]),
-        (inputspec, make_outdir, [('output_dir', 'output_dir')]),
+        (inputspec, make_outdir, [('output_dir', 'output_dir'),
+                                  ('proj_name', 'proj_name')]),
         (inputspec, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
                                      ('TR', 'time_repetition')]),
         (inputspec, modelfit, [('TR', 'inputspec.interscan_interval'),
