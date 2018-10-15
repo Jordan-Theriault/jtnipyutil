@@ -277,9 +277,59 @@ def create_lvl1pipe_wf(options):
 
         ~~~~~~~~~~~ Set in command call:
 
-        options:
+        options: dictionary with the following entries
+            remove_steadystateoutlier [boolean]:
+                Should always be True. Remove steady state outliers from bold timecourse, specified in fmriprep confounds file.
+            smooth [boolean]:
+                If True, then /smooth subfolder created and populated with results. If False, then /nosmooth subfolder created and populated with results.
+            censoring [string]:
+                Either '' or 'despike', which implements nipype.interfaces.afni.Despike
+            ICA_AROMA [boolean]:
+                Use AROMA error components, from fmriprep confounds file.
+            run_contrasts [boolean]:
+                If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
 
         ~~~~~~~~~~~ Set through inputs.inputspec
+
+        input_dir
+
+        output_dir
+
+        design_col
+
+        noise_regressors
+
+        noise_transforms
+
+        TR
+
+        FILM_threshold
+
+        hpf_cutoff
+
+        params
+
+        contrasts
+
+        bases
+
+        model_serial_correlations
+
+        sinker_subs
+
+        bolds_template
+
+        mask_template
+
+        task_template
+
+        confound_template
+
+        smooth_gm_mask_template
+
+        gmmask_args
+
+        proj_name
 
     '''
     import nipype.pipeline.engine as pe # pypeline engine
@@ -633,7 +683,7 @@ def create_lvl1pipe_wf(options):
                             ('outputspec.copes','model.@copes'),
                             ('outputspec.varcopes','model.@varcopes'),
                             ('outputspec.zfiles','stats'),
-                            ('outputspec.pfiles', 'stats.@pfiles')
+                            ('outputspec.pfiles', 'stats.@pfiles'),
                             ('level1design.ev_files', 'design'),
                             ('level1design.fsf_files', 'design.@fsf'),
                             ('modelgen.con_file', 'design.@confile'),
@@ -645,8 +695,6 @@ def create_lvl1pipe_wf(options):
                             ('modelestimate.sigmasquareds', 'model.@resid_sum'),
                             ('modelestimate.fstats', 'stats.@fstats'),
                             ('modelestimate.thresholdac', 'model.@serial_corr'),
-                            ('modelestimate.fstats', 'stats.@fstats'),
-
                            ])
         ])
 
