@@ -628,23 +628,26 @@ def create_lvl1pipe_wf(options):
         (inputspec, sinker, [('subject_id','container'),
                               ('sinker_subs', 'substitutions')]), # creates folder for each subject.
         (make_outdir, sinker, [('new_out_dir', 'base_directory')]),
-        (modelfit, sinker, [('outputspec.dof_file','model.@dof'), #.@ puts this in the par folder.
-                            ('outputspec.parameter_estimates', 'model'),
+        (modelfit, sinker, [('outputspec.parameter_estimates', 'model'),
+                            ('outputspec.dof_file','model.@dof'), #.@ puts this in the model folder.
                             ('outputspec.copes','model.@copes'),
                             ('outputspec.varcopes','model.@varcopes'),
+                            ('outputspec.zfiles','stats'),
+                            ('outputspec.pfiles', 'stats.@pfiles')
                             ('level1design.ev_files', 'design'),
                             ('level1design.fsf_files', 'design.@fsf'),
                             ('modelgen.con_file', 'design.@confile'),
                             ('modelgen.design_cov', 'design.@covmatriximg'),
                             ('modelgen.design_image', 'design.@designimg'),
                             ('modelestimate.logfile', 'design.@log'),
+                            ('modelestimate.results_dir', 'design.@results_dir'),
                             ('modelestimate.residual4d', 'model.@resid'),
+                            ('modelestimate.sigmasquareds', 'model.@resid_sum'),
                             ('modelestimate.fstats', 'stats.@fstats'),
+                            ('modelestimate.thresholdac', 'model.@serial_corr'),
+                            ('modelestimate.fstats', 'stats.@fstats'),
+
                            ])
         ])
 
-    if options['run_contrasts']:
-        lvl1pipe_wf.connect([
-            (modelfit, sinker, [('outputspec.zfiles','stats'),
-                                ('outputspec.pfiles', 'stats.@pfiles')])])
     return lvl1pipe_wf
