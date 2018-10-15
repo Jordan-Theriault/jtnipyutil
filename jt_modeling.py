@@ -457,10 +457,10 @@ def create_lvl1pipe_wf(options):
     # make_bunch.inputs.design_col =  # From inputspec
     # make_bunch.inputs.params =  # From inputspec
 
-    def mk_outdir(output_dir, options, 'proj_name'):
+    def mk_outdir(output_dir, options, proj_name):
         import os
         from time import gmtime, strftime
-        prefix = proj_name)
+        prefix = proj_name
         if options['smooth']:
             new_out_dir = os.path.join(output_dir, prefix, 'smooth')
         else:
@@ -516,6 +516,19 @@ def create_lvl1pipe_wf(options):
     # modelfit.inputs.inputspec.bases = # From inputspec
     # modelfit.inputs.inputspec.model_serial_correlations = # From inputspec
     # modelfit.inputs.inputspec.contrasts = # From inputspec
+
+    if not options['run_contrasts']: # drop contrast part of modelfit if contrasts aren't required.
+        modelestimate = modelfit.get_node('modelestimate')
+        merge_contrasts = modelfit.get_node('merge_contrasts')
+        ztop = modelfit.get_node('ztop')
+        outputspec = modelfit.get_node('outputspec')
+        modelfit.disconnect([(modelestimate, merge_contrasts, [('zstats', 'in1'),
+                                                             ('zfstats', 'in2')]),
+                             (merge_contrasts, ztop, [('out', 'in_file')]),
+                             (merge_contrasts, outputspec, [('out', 'zfiles')]),
+                             (ztop, outputspec, [('out_file', 'pfiles')])
+                            ])
+        modelfit.remove_nodes([merge_contrasts, ztop])
 
     ################## DataSink
     from nipype.interfaces.io import DataSink
@@ -614,8 +627,6 @@ def create_lvl1pipe_wf(options):
                             ('outputspec.parameter_estimates', 'model'),
                             ('outputspec.copes','model.@copes'),
                             ('outputspec.varcopes','model.@varcopes'),
-                            ('outputspec.zfiles','stats'),
-                            ('outputspec.pfiles', 'stats.@pfiles'),
                             ('level1design.ev_files', 'design'),
                             ('level1design.fsf_files', 'design.@fsf'),
                             ('modelgen.con_file', 'design.@confile'),
@@ -626,4 +637,9 @@ def create_lvl1pipe_wf(options):
                             ('modelestimate.fstats', 'stats.@fstats'),
                            ])
         ])
+
+    if options['run_contrasts']:
+        lvl1pipe_wf.connect([
+            (modelfit, sinker, [('outputspec.zfiles','stats'),
+                                ('outputspec.pfiles', 'stats.@pfiles')])])
     return lvl1pipe_wf
