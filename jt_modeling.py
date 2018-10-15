@@ -537,6 +537,10 @@ def create_lvl1pipe_wf(options):
     # sinker.inputs.substitutions = # From inputspec
     # sinker.inputs.base_directory = # frm make_outdir
 
+    def negate(input):
+        out = not input
+        return out
+
     lvl1pipe_wf.connect([
         # grab subject/run info
         (inputspec, get_bold, [('subject_id', 'subj_id'),
@@ -560,6 +564,7 @@ def create_lvl1pipe_wf(options):
                                 ('FILM_threshold', 'inputspec.film_threshold'),
                                 ('bases', 'inputspec.bases'),
                                 ('model_serial_correlations', 'inputspec.model_serial_correlations'),
+                                (('model_serial_correlations', negate), 'modelestimate.autocorr_noestimate'),
                                 ('contrasts', 'inputspec.contrasts')]),
         (get_confile, get_confounds, [('out_file', 'confound_file')]),
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
