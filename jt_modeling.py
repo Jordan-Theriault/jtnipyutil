@@ -291,41 +291,42 @@ def create_lvl1pipe_wf(options):
 
         input_dir [string]:
             path to folder containing fmriprep preprocessed data.
-            e.g. '/home/neuro/data'
+            e.g. model_wf.inputs.inputspec.input_dir = '/home/neuro/data'
         output_dir [string]:
             path to desired output folder. Workflow will create a new subfolder based on proj_name.
-            e.g. '/home/neuro/output'
+            e.g. model_wf.inputs.inputspec.output_dir = '/home/neuro/output'
         proj_name [string]:
             name for project subfolder within output_dir. Ideally something unique, or else workflow will write to an existing folder.
-            e.g. 'FSMAP_stress'
+            e.g. model_wf.inputs.inputspec.proj_name = 'FSMAP_stress'
         design_col [string]:
             Name of column within events.tsv with values corresponding to entries specified in params.
-            e.g. 'trial_type'
+            e.g. model_wf.inputs.inputspec.design_col = 'trial_type'
         params [list fo strings]:
             values within events.tsv design_col that correspond to events to be modeled.
-            e.g. ['Instructions', 'Speech_prep', 'No_speech']
+            e.g. model_wf.inputs.inputspec.params = ['Instructions', 'Speech_prep', 'No_speech']
         contrasts [list of lists]:
             Specifies contrasts to be performed. using params selected above.
-            e.g. [['Instructions', 'T', ['Instructions'], [1]],
+            e.g. model_wf.inputs.inputspec.contrasts =
+                [['Instructions', 'T', ['Instructions'], [1]],
                  ['Speech_prep', 'T', ['Speech_prep'], [1]],
                  ['No_speech', 'T', ['No_speech'], [1]],
                  ['Speech_prep>No_speech', 'T', ['Speech_prep', 'No_speech'], [1, -1]]]
         noise_regressors [list of strings]:
             column names in confounds.tsv, specifying desired noise regressors for model.
             IF noise_transforms are to be applied to a regressor, add '*' to the name.
-            e.g. ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+            e.g. model_wf.inputs.inputspec.noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
         noise_transforms [list of strings]:
             noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
-            e.g. ['quad', 'tderiv', 'quadtderiv']
+            e.g. model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
         TR [float]:
             Scanner TR value in seconds.
-            e.g. 2.
+            e.g. model_wf.inputs.inputspec.TR = 2.
         FILM_threshold [integer]:
             Cutoff value for modeling threshold. 1000: p <.001; 1: p <=1, i.e. unthresholded.
-            e.g. 1
+            e.g. model_wf.inputs.inputspec.FILM_threshold = 1
         hpf_cutoff [float]:
             high pass filter value.
-            e.g. 120.
+            e.g. model_wf.inputs.inputspec.hpf_cutoff = 120.
         bases: (a dictionary with keys which are 'hrf' or 'fourier' or 'fourier_han' or 'gamma' or 'fir' and with values which are any value)
              dict {'name':{'basesparam1':val,...}}
              name : string
@@ -340,34 +341,69 @@ def create_lvl1pipe_wf(options):
                     Post-stimulus window length (in seconds)
                  order : int
                     Number of basis functions
-            e.g. {'dgamma':{'derivs': False}}
+            e.g. model_wf.inputs.inputspec.bases = {'dgamma':{'derivs': False}}
         model_serial_correlations [boolean]:
             Allow prewhitening, with 5mm spatial smoothing.
+            model_wf.inputs.inputspec.model_serial_correlations = True
         sinker_subs [list of tuples]:
             passed to nipype.interfaces.io.Datasink. Changes names when passing to output directory.
-            e.g. [('pe1', 'pe1_instructions'),
+            e.g. model_wf.inputs.inputspec.sinker_subs =
+                [('pe1', 'pe1_instructions'),
                  ('pe2', 'pe2_speech_prep'),
                  ('pe3', 'pe3_no_speech')]
         bold_template [dictionary with string entry]:
             Specifies path, with wildcard, to grab all relevant BOLD files. Each subject_list entry should uniquely identify the ONE relevant file.
-            e.g. {'bold': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'} would grab the functional run for all subjects, and when subject_id = 'sub-001', there is ONE file in the list that the ID could possible correspond to.
+            e.g. model_wf.inputs.inputspec.bold_template =
+                {'bold': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'}
+                 This would grab the functional run for all subjects, and when subject_id = 'sub-001', there is ONE file in the list that the ID could possible correspond to.
                 To handle multiple runs, list the run information in the subject_id. e.g. 'sub-01_task-trag_run-01'.
         mask_template [dictionary with string entry]:
             Specifies path, with wildcard, to grab all relevant MASK files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
-            e.g. {'mask': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'}
+            e.g. model_wf.inputs.inputspec.mask_template =
+            {'mask': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'}
             See bold_template for more detail.
         task_template [dictionary with string entry]:
             Specifies path, with wildcard, to grab all relevant events.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
-            e.g. {'task': '/home/neuro/data/sub-*/func/sub-*_task-stress_events.tsv'}
+            e.g. model_wf.inputs.inputspec.task_template =
+            {'task': '/home/neuro/data/sub-*/func/sub-*_task-stress_events.tsv'}
             See bold_template for more detail.
         confound_template [dictionary with string entry]:
             Specifies path, with wildcard, to grab all relevant confounds.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
-            e.g. {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
+            e.g. model_wf.inputs.inputspec.confound_template =
+            {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
             See bold_template for more detail.
         smooth_gm_mask_template [dictionary with string entry]:
             Specifies path, with wildcard, to grab all relevant grey matter mask .nii.gz files, pulling from each subject's /anat fodler. Each subject_list entry should uniquely identify the ONE relevant file (BUT SEE THE NOTE BELOW).
-            e.g. {'gm_mask': '/scratch/data/sub-*/anat/sub-*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz'}
+            e.g. model_wf.inputs.inputspec.smooth_gm_mask_template =
+                {'gm_mask': '/scratch/data/sub-*/anat/sub-*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz'}
                 NOTE: If the subject_id value has more information than just the ID (e.g. sub-01_task-trag_run-01), then JUST the sub-01 portion will be used to identify the grey matter mask. This is because multiple runs will have the same anatomical data. i.e. sub-01_run-01, sub-01_run-02, sub-01_run-03, all correspond to sub-01_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz.
+        fwhm [float]. Redundant if options['smooth']: False
+            Determines smoothing kernel. Multiple kernels can be run in parallel by iterating through an outside workflow. Also see subject_id below for another example of iterables.
+            e.g.
+                model_wf.inputs.inputspec.fwhm = 1.5
+            OR Iterable e.g.
+                import nipype.pipeline.engine as pe
+                fwhm_list = [1.5, 6]
+                infosource = pe.Node(IdentityInterface(fields=['fwhm']),
+                           name='infosource')
+                infosource.iterables = [('fwhm', fwhm_list)]
+                full_model_wf = pe.Workflow(name='full_model_wf')
+                full_model_wf.connect([(infosource, model_wf, [('subject_id', 'inputspec.subject_id')])])
+                full_model_wf.run()
+        subject_id [string]:
+            Identifies subject in conjnuction with template. See bold_template note above.
+            Can also be entered as an iterable from an outside workflow, in which case iterables are run in parallel to the extent that cpu cores are available.
+            e.g.
+                model_wf.inputs.inputspec.subject_id = 'sub-01'
+            OR Iterable e.g.
+                import nipype.pipeline.engine as pe
+                subject_list = ['sub-001', 'sub-002']
+                infosource = pe.Node(IdentityInterface(fields=['subject_id']),
+                           name='infosource')
+                infosource.iterables = [('subject_id', subject_list)]
+                full_model_wf = pe.Workflow(name='full_model_wf')
+                full_model_wf.connect([(infosource, model_wf, [('subject_id', 'inputspec.subject_id')])])
+                full_model_wf.run()
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
