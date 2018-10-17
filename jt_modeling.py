@@ -274,7 +274,6 @@ def create_lvl2tfce_wf(mask=False):
 def create_lvl1pipe_wf(options):
     '''
     Input [Mandatory]:
-
         ~~~~~~~~~~~ Set in command call:
 
         options: dictionary with the following entries
@@ -288,49 +287,87 @@ def create_lvl1pipe_wf(options):
                 Use AROMA error components, from fmriprep confounds file.
             run_contrasts [boolean]:
                 If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
-
         ~~~~~~~~~~~ Set through inputs.inputspec
 
-        input_dir
-
-        output_dir
-
-        design_col
-
-        noise_regressors
-
-        noise_transforms
-
-        TR
-
-        FILM_threshold
-
-        hpf_cutoff
-
-        params
-
-        contrasts
-
-        bases
-
-        model_serial_correlations
-
-        sinker_subs
-
-        bolds_template
-
-        mask_template
-
-        task_template
-
-        confound_template
-
-        smooth_gm_mask_template
-
-        gmmask_args
-
-        proj_name
-
+        input_dir [string]:
+            path to folder containing fmriprep preprocessed data.
+            e.g. '/home/neuro/data'
+        output_dir [string]:
+            path to desired output folder. Workflow will create a new subfolder based on proj_name.
+            e.g. '/home/neuro/output'
+        proj_name [string]:
+            name for project subfolder within output_dir. Ideally something unique, or else workflow will write to an existing folder.
+            e.g. 'FSMAP_stress'
+        design_col [string]:
+            Name of column within events.tsv with values corresponding to entries specified in params.
+            e.g. 'trial_type'
+        params [list fo strings]:
+            values within events.tsv design_col that correspond to events to be modeled.
+            e.g. ['Instructions', 'Speech_prep', 'No_speech']
+        contrasts [list of lists]:
+            Specifies contrasts to be performed. using params selected above.
+            e.g. [['Instructions', 'T', ['Instructions'], [1]],
+                 ['Speech_prep', 'T', ['Speech_prep'], [1]],
+                 ['No_speech', 'T', ['No_speech'], [1]],
+                 ['Speech_prep>No_speech', 'T', ['Speech_prep', 'No_speech'], [1, -1]]]
+        noise_regressors [list of strings]:
+            column names in confounds.tsv, specifying desired noise regressors for model.
+            IF noise_transforms are to be applied to a regressor, add '*' to the name.
+            e.g. ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+        noise_transforms [list of strings]:
+            noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
+            e.g. ['quad', 'tderiv', 'quadtderiv']
+        TR [float]:
+            Scanner TR value in seconds.
+            e.g. 2.
+        FILM_threshold [integer]:
+            Cutoff value for modeling threshold. 1000: p <.001; 1: p <=1, i.e. unthresholded.
+            e.g. 1
+        hpf_cutoff [float]:
+            high pass filter value.
+            e.g. 120.
+        bases: (a dictionary with keys which are 'hrf' or 'fourier' or 'fourier_han' or 'gamma' or 'fir' and with values which are any value)
+             dict {'name':{'basesparam1':val,...}}
+             name : string
+             Name of basis function (hrf, fourier, fourier_han, gamma, fir)
+             hrf :
+                 derivs : 2-element list
+                    Model HRF Derivatives. No derivatives: [0,0],
+                    Time derivatives : [1,0],
+                    Time and Dispersion derivatives: [1,1]
+             fourier, fourier_han, gamma, fir:
+                 length : int
+                    Post-stimulus window length (in seconds)
+                 order : int
+                    Number of basis functions
+            e.g. {'dgamma':{'derivs': False}}
+        model_serial_correlations [boolean]:
+            Allow prewhitening, with 5mm spatial smoothing.
+        sinker_subs [list of tuples]:
+            passed to nipype.interfaces.io.Datasink. Changes names when passing to output directory.
+            e.g. [('pe1', 'pe1_instructions'),
+                 ('pe2', 'pe2_speech_prep'),
+                 ('pe3', 'pe3_no_speech')]
+        bold_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant BOLD files. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. {'bold': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'} would grab the functional run for all subjects, and when subject_id = 'sub-001', there is ONE file in the list that the ID could possible correspond to.
+                To handle multiple runs, list the run information in the subject_id. e.g. 'sub-01_task-trag_run-01'.
+        mask_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant MASK files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. {'mask': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'}
+            See bold_template for more detail.
+        task_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant events.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. {'task': '/home/neuro/data/sub-*/func/sub-*_task-stress_events.tsv'}
+            See bold_template for more detail.
+        confound_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant confounds.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
+            See bold_template for more detail.
+        smooth_gm_mask_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant grey matter mask .nii.gz files, pulling from each subject's /anat fodler. Each subject_list entry should uniquely identify the ONE relevant file (BUT SEE THE NOTE BELOW).
+            e.g. {'gm_mask': '/scratch/data/sub-*/anat/sub-*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz'}
+                NOTE: If the subject_id value has more information than just the ID (e.g. sub-01_task-trag_run-01), then JUST the sub-01 portion will be used to identify the grey matter mask. This is because multiple runs will have the same anatomical data. i.e. sub-01_run-01, sub-01_run-02, sub-01_run-03, all correspond to sub-01_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz.
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
@@ -373,6 +410,9 @@ def create_lvl1pipe_wf(options):
         import glob
         temp_list = []
         out_list = []
+        if '_' in subj_id and '/anat/' in template:
+            subj_id = subj_id[:subj_id.find('_')]
+            # if looking for gmmask, and subj_id includes additional info (e.g. sub-001_task-trag_run-01) then just take the subject id component, as the run info will not be present for the anatomical data.
         for x in glob.glob(list(template.values())[0]):
             if subj_id in x:
                 temp_list.append(x)
@@ -588,8 +628,7 @@ def create_lvl1pipe_wf(options):
     # sinker.inputs.base_directory = # frm make_outdir
 
     def negate(input):
-        out = not input
-        return out
+        return not input
 
     lvl1pipe_wf.connect([
         # grab subject/run info
@@ -690,7 +729,6 @@ def create_lvl1pipe_wf(options):
                             ('modelgen.design_cov', 'design.@covmatriximg'),
                             ('modelgen.design_image', 'design.@designimg'),
                             ('modelestimate.logfile', 'design.@log'),
-                            ('modelestimate.results_dir', 'design.@results_dir'),
                             ('modelestimate.residual4d', 'model.@resid'),
                             ('modelestimate.sigmasquareds', 'model.@resid_sum'),
                             ('modelestimate.fstats', 'stats.@fstats'),
