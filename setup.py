@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name = 'pyfmriutil',
+    name = 'jtnipyutil',
     version = '0.1',
     author = 'Jordan Theriault',
     author_email = 'jordan_theriault@northeastern.edu',
