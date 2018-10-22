@@ -1,2 +1,2 @@
-# util_pyfmri
+# jtnipyutil
 fMRI Python utility functions
