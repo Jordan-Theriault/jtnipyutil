@@ -1,0 +1,7 @@
+[report]
+omit =
+    setup.py
+    jtnipyutil/__main__.py
+    jtnipyutil/_version.py
+    versioneer.py
+    tests/*
