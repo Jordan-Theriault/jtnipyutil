@@ -23,4 +23,4 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
               git+https://github.com/pymc-devs/pymc3
               git+https://github.com/PsychoinformaticsLab/nipymc" \
   activate=True \
---copy jtnipyutil /opt/miniconda-latest/envs/py36/lib/python3.6/site-packages/jtnipyutil
+--copy jtnipyutil /opt/miniconda-latest/envs/py35/lib/python3.5/site-packages/jtnipyutil
