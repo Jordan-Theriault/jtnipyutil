@@ -666,6 +666,9 @@ def create_lvl1pipe_wf(options):
     def negate(input):
         return not input
 
+    def unlist(input):
+        return input[0]
+
     lvl1pipe_wf.connect([
         # grab subject/run info
         (inputspec, get_bold, [('subject_id', 'subj_id'),
@@ -714,7 +717,7 @@ def create_lvl1pipe_wf(options):
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, maskBold, [('outputnode.smoothed_files', 'in_file')]),
+                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'in_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
@@ -737,7 +740,7 @@ def create_lvl1pipe_wf(options):
                 (mod_gmmask, smooth_wf, [('out_file', 'inputnode.mask_file')]),
                 (mod_gmmask, sinker, [('out_file', 'smoothing_mask')]),
                 (get_bold, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, maskBold, [('outputnode.smoothed_files', 'in_file')]),
+                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'in_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
