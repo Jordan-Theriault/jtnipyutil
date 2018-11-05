@@ -446,7 +446,7 @@ def create_lvl1pipe_wf(options):
         import glob
         temp_list = []
         out_list = []
-        if '_' in subj_id and '/anat/' in template:
+        if '_' in subj_id and '/anat/' in template.values())[0]:
             subj_id = subj_id[:subj_id.find('_')]
             # if looking for gmmask, and subj_id includes additional info (e.g. sub-001_task-trag_run-01) then just take the subject id component, as the run info will not be present for the anatomical data.
         for x in glob.glob(list(template.values())[0]):
