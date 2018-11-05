@@ -3,7 +3,7 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
 --install gcc g++ graphviz tree bsdtar \
           git vim emacs-nox nano less ncdu \
           tig  \
---run-bash "export tar='bsdtar'" \
+--run "export tar='bsdtar'" \
 --fsl version=5.0.11 \
 --ants version=2.2.0 \
 --convert3d version=1.0.0 \

@@ -52,7 +52,7 @@ model_wf.inputs.inputspec.task_template = {'task': '/home/neuro/data/sub-*/func/
 model_wf.inputs.inputspec.confound_template = {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
 model_wf.inputs.inputspec.smooth_gm_mask_template = {'gm_mask': '/home/neuro/data/sub-*/anat/sub-*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz'}
 model_wf.inputs.inputspec.gmmask_args =  '-thr .5 -bin -kernel gauss 1 -dilM' # FSL Math command to adjust grey matter for susan smoothing mask.
-model_wf.inputs.inputspec.proj_name = 'FSMAP_resting_state'
+model_wf.inputs.inputspec.proj_name = 'FSMAP_stress'
 
 # model_wf.inputspec.subject_id = # Could use 'sub-001', or use iterables below.
 # model_wf.inputspec.fwhm = # could use 1.5, or use iterables below.
