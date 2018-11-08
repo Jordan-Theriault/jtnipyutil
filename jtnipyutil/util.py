@@ -114,7 +114,7 @@ def create_grandmean_img_wf():
                     ])
     return grandmean_wf
 
-def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
+def fit_mask2(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file' ):
     '''
     Fits a mask file to the space of a reference image.
     Assumes that interpolation happens along 3d axes. All additional dimensions are unchanged.
@@ -122,6 +122,7 @@ def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
         mask_file: path to a nifti mask file to be refit to reference space.
         ref_file: path to a nifti file in the reference space. Can be 3d or 4d.
             3d space is the reference dimension.
+        spline: spline order for interpolation. Default = 0
         work_dir: [default = ''] path to directory to save masked file. Required if out_format = 'file'.
         out_format: [default = 'file'] Options are 'file', or 'array'.
     Output
@@ -139,15 +140,19 @@ def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
         interp_dims = interp_dims.tolist()
         while len(interp_dims) != len(mask.shape):
             interp_dims.append(1)
-        data = zoom(mask.get_data(), interp_dims) # interpolate mask to native space.
+        data = zoom(mask.get_data(), interp_dims, order=spline) # interpolate mask to native space.
     else:
         print('mask is already in reference space!')
 
     if out_format == 'file':
         assert (work_dir != ''), 'You must give a value for work_dir'
-        out_mask = nib.Nifti1Image(data, img.affine, img.header)
-        nib.save(out_mask, os.path.join(work_dir, mask_name + '_fit.nii.gz'))
-        out_mask = os.path.join(work_dir, mask_name + '_fit.nii.gz')
+        out_mask = nib.Nifti1Image(data, ref.affine, mask.header)
+        out_mask.header['dim'] = ref.header['dim']
+        out_mask.header['pixdim'] = ref.header['pixdim']
+        nib.save(out_mask, os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz'))
+        out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
+        out_mask.header['cal_min'] = np.min(data)
+        out_mask = os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz')
     else:
         assert (out_format == 'array'), 'out_format is neither file, or array.'
         out_mask = data
