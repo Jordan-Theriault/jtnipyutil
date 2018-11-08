@@ -117,6 +117,7 @@ def create_grandmean_img_wf():
 def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
     '''
     Fits a mask file to the space of a reference image.
+    Assumes that interpolation happens along 3d axes. All additional dimensions are unchanged.
     Input [Mandatory]:
         mask_file: path to a nifti mask file to be refit to reference space.
         ref_file: path to a nifti file in the reference space. Can be 3d or 4d.
@@ -133,9 +134,12 @@ def fit_mask(mask_file, ref_file, work_dir = '', out_format = 'file' ):
     mask = nib.load(mask_file)
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
     ref = nib.load(ref_file)
-    if mask.shape != ref.shape[0:3]:
-        interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
-        data = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+    if mask.shape[0:3] != ref.shape[0:3]:
+        interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape[0:3])
+        interp_dims = interp_dims.tolist()
+        while len(interp_dims) != len(mask.shape):
+            interp_dims.append(1)
+        data = zoom(mask.get_data(), interp_dims) # interpolate mask to native space.
     else:
         print('mask is already in reference space!')
 
