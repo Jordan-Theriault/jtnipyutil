@@ -114,7 +114,7 @@ def create_grandmean_img_wf():
                     ])
     return grandmean_wf
 
-def fit_mask2(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file' ):
+def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file' ):
     '''
     Fits a mask file to the space of a reference image.
     Assumes that interpolation happens along 3d axes. All additional dimensions are unchanged.
