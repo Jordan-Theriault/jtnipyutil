@@ -116,7 +116,7 @@ def create_grandmean_img_wf():
 
 def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file' ):
     '''
-    Fits a mask file to the space of a reference image.
+    Fits a mask file to the space of a reference image, using nearest neighbor classification.
     Assumes that interpolation happens along 3d axes. All additional dimensions are unchanged.
     Input [Mandatory]:
         mask_file: path to a nifti mask file to be refit to reference space.
@@ -159,9 +159,9 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
 
     return out_mask
 
-def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_exclu = 'exclusive'):
+def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_exclu = 'exclusive', spline = 0):
     '''
-    Fits a mask file to the space of a reference image.
+    Applies a mask, converting to reference space if necessary, using nearest neighbor classification.
     Input [Mandatory]:
         img_file: path to a nifti file to be masked. Can be 3d or 4d.
         mask_file: path to a nifti mask file. Does not need to match dimensions of img_file
@@ -184,7 +184,7 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
     data = nib.load(img_file).get_data() # grab data
     if mask.shape != data.shape[0:3]:
         interp_dims = np.array(data.shape[0:3])/np.array(mask.shape)
-        mask = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
+        mask = zoom(mask.get_data(), interp_dims.tolist(), order = spline) # interpolate mask to native space.
     else:
         mask = mask.get_data()
     if inclu_exclu == 'exclusive':
