@@ -230,7 +230,7 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     label_map, n_labels = label(img) # label remaining voxels.
     lab_val = 1 # this is so that labels are ordered sequentially, rather than having gaps.
     if type(cluster_k) == int:
-        print(('looking for clusters > %s voxels') % cluster_k)
+        print(('looking for clusters > %s voxels, at %s%% threshold') % (cluster_k, thresh))
         for label_ in range(1, n_labels+1): # addition is to match labels, which are base 1.
             if np.sum(label_map==label_) >= cluster_k:
                 out_labeled[label_map==label_] = lab_val # zero any clusters below cluster threshold.
