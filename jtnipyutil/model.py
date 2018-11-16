@@ -174,27 +174,11 @@ def create_lvl2tfce_wf(mask=False):
 
     ################## Fit mask, if given 2 design.
     if mask:
-        def fit_msk(mask_file, ref_file):
-            import numpy as np
-            import nibabel as nib
-            import os
-            from scipy.ndimage import zoom
-            mask = nib.load(mask_file)
-            ref = nib.load(ref_file)
-            if mask.shape != ref.shape[0:3]:
-                interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
-                data = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
-                out_mask = nib.Nifti1Image(data, ref.affine, ref.header)
-                out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
-                out_mask.header['cal_min'] = np.min(data)
-                nib.save(out_mask, os.path.abspath(mask_file + '_fit.nii.gz'))
-                out_mask = os.path.abspath(mask_file + '_fit.nii.gz')
-            return out_mask
-    if mask:
+        from jtnipyutil.util import fit_mask
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
-            function=fit_msk),
+            function=fit_mask),
                             name='fit_mask')
 
     ################## FSL Randomize.
@@ -492,22 +476,7 @@ def create_lvl1pipe_wf(options):
                                 name='mod_gmmask')
         # mod_gmmask.inputs.in_file = # from get_gmmask
         # mod_gmmask.inputs.args = from inputspec
-        def fit_msk(mask_file, ref_file):
-            import numpy as np
-            import nibabel as nib
-            import os
-            from scipy.ndimage import zoom
-            mask = nib.load(mask_file)
-            ref = nib.load(ref_file)
-            if mask.shape != ref.shape[0:3]:
-                interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape)
-                data = zoom(mask.get_data(), interp_dims.tolist()) # interpolate mask to native space.
-                out_mask = nib.Nifti1Image(data, ref.affine, ref.header)
-                out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
-                out_mask.header['cal_min'] = np.min(data)
-                nib.save(out_mask, os.path.abspath(mask_file + '_fit.nii.gz'))
-                out_mask = os.path.abspath(mask_file + '_fit.nii.gz')
-            return out_mask
+        from jtnipyutil.util import fit_mask
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
@@ -566,6 +535,7 @@ def create_lvl1pipe_wf(options):
         df = pd.DataFrame(pd.read_csv(tf, sep='\t', parse_dates=False))
         output = Bunch(conditions= params,
                            onsets=[list(df[df[design_col] == f].onset) for f in params],
+                                #TODO - allow .onset and .duration to be set in inputspec Set inputspec to ons_dur_tt, and make it a 3 value list [onset, duration, trial_type]. Customize all names this way.
                            durations=[list(set(df[df[design_col] == f].duration)) for f in params],
                            amplitudes=None,
                            tmod=None,
