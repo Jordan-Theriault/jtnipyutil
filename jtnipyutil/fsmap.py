@@ -62,6 +62,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
 
     ## get mean across defaults: threshold (95) and cluster (1) ##########################################
     # This establishes a template to judge which threshold fits it best.
+    # Average is across all subjects.
     aq_template = np.copy(all_subj_data[...,0,:])
     aq_template[aq_template != 1] = 0
     aq_template = np.mean(aq_template, axis=3)
@@ -93,3 +94,5 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
         else:
             aq_template = np.mean(new_template, axis=3)
             print('new aq_template differs from previous iteration. Performing another iteration.')
+    aq_temp_img = nib.Nifti1Image(aq_template, img_info.affine, img_info.header)
+    nib.save(aq_temp_img, os.path.join(work_dir, 'MEAN_aqueduct_template.nii.gz'))
