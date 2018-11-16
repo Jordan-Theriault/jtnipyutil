@@ -1,4 +1,4 @@
-def create_aqueduct_template(subj_list, p_thresh_list, tempate, work_dir, region_mask):
+def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, region_mask):
     '''
     The workflow takes the following as input to wf.inputs.inputspec
     Input [Mandatory]:
@@ -23,6 +23,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, tempate, work_dir, region
     TODO
     '''
     import nibabel as nib
+    import numpy as np
     import os
     from jtnipyutil.util import files_from_template, clust_thresh, mask_img
 
@@ -35,18 +36,22 @@ def create_aqueduct_template(subj_list, p_thresh_list, tempate, work_dir, region
             img = mask_img(img_file, space_mask, out_format = 'array') # loading done here. Slow.
             # img = np.nanmean(img, axis=3) # Average data along time.
             for thresh in p_thresh_list:
-                img_labeled = clust_thresh(img, cluster_k=[50,40,30], thresh = thresh)
-                if thresh = p_thresh_list[0]:
+                img_labeled = clust_thresh(img, cluster_k=[50], thresh = thresh)
+                if thresh == p_thresh_list[0]:
                     all_labeled = img_labeled[..., np.newaxis]
                 else:
                     all_labeled = np.append(all_labeled, img_labeled[..., np.newaxis], axis=3) # stack thresholds along 4th dim.
             pag_img = nib.Nifti1Image(all_labeled, img_info.affine, img_info.header)
             pag_img.header['cal_max'] = np.max(all_labeled) # fix header info
             pag_img.header['cal_min'] = 0 # fix header info
-            nib.save(pag_img, os.path.join(work_dir, subj+'_aqueduct_template.nii.gz'))
+            try:
+                nib.save(pag_img, os.path.join(work_dir, subj+'_aqueduct_template.nii.gz'))
+            except:
+                os.makedirs(work_dir)
+                nib.save(pag_img, os.path.join(work_dir, subj+'_aqueduct_template.nii.gz'))
 
     ## gather all subjects clusters/thresholds into a 5d array. ##########################################
-    for subj in enumerate(subj_list):
+    for subj in subj_list:
         img_file = files_from_template(subj, os.path.join(work_dir, '*_aqueduct_template.nii.gz'))
         print(('getting data from %s') % img_file[0])
         img = nib.load(img_file[0]).get_data()
@@ -56,10 +61,10 @@ def create_aqueduct_template(subj_list, p_thresh_list, tempate, work_dir, region
             all_subj_data = np.append(all_subj_data, img[...,np.newaxis], axis=4)
 
     ## get mean across defaults: threshold (95) and cluster (1) ##########################################
+    # This establishes a template to judge which threshold fits it best.
     aq_template = np.copy(all_subj_data[...,0,:])
     aq_template[aq_template != 1] = 0
     aq_template = np.mean(aq_template, axis=3)
-
 
     while True:
         new_template = np.zeros(list(all_subj_data.shape[0:3]) + [all_subj_data.shape[-1]])
