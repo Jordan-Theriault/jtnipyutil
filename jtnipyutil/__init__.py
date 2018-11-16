@@ -1,1 +1,1 @@
-__all__ = ['7t', 'model', 'util', 'PAG_mask']
+__all__ = ['fsmap', 'model', 'util', 'PAG_mask']
