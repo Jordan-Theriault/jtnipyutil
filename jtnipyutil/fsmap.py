@@ -29,7 +29,8 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
 
     for subj in subj_list: # For each subjet, create aqueduct template file wtih all thresholded clusters.
         try:
-            img_file = nib.load(files_from_template(subj, os.path.join(work_dir, '*_aqueduct_template.nii.gz'))[0])
+            img_file = nib.load(files_from_template(subj, os.path.join(work_dir, '*_sigmasquare_clusts.nii.gz'))[0])
+            img_info = nib.load(img_file)
         except:
             img_file  = files_from_template(subj, template)[0]
             img_info = nib.load(img_file)
@@ -45,14 +46,14 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
             pag_img.header['cal_max'] = np.max(all_labeled) # fix header info
             pag_img.header['cal_min'] = 0 # fix header info
             try:
-                nib.save(pag_img, os.path.join(work_dir, subj+'_aqueduct_template.nii.gz'))
+                nib.save(pag_img, os.path.join(work_dir, subj+'_sigmasquare_clusts.nii.gz'))
             except:
                 os.makedirs(work_dir)
-                nib.save(pag_img, os.path.join(work_dir, subj+'_aqueduct_template.nii.gz'))
+                nib.save(pag_img, os.path.join(work_dir, subj+'_sigmasquare_clusts.nii.gz'))
 
     ## gather all subjects clusters/thresholds into a 5d array. ##########################################
     for subj in subj_list:
-        img_file = files_from_template(subj, os.path.join(work_dir, '*_aqueduct_template.nii.gz'))
+        img_file = files_from_template(subj, os.path.join(work_dir, '*_sigmasquare_clusts.nii.gz'))
         print(('getting data from %s') % img_file[0])
         img = nib.load(img_file[0]).get_data()
         if subj == subj_list[0]:
@@ -64,7 +65,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
     # This establishes a template to judge which threshold fits it best.
     # Average is across all subjects.
     aq_template = np.copy(all_subj_data[...,0,:])
-    aq_template[aq_template != 1] = 0
+    aq_template[aq_template != 1] = 0 #TODO consider changing this to the largest cluster. Check to see if this works across everyone.
     aq_template = np.mean(aq_template, axis=3)
 
     while True:
@@ -94,5 +95,16 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
         else:
             aq_template = np.mean(new_template, axis=3)
             print('new aq_template differs from previous iteration. Performing another iteration.')
+
+    for img_idx in range(0, new_template.shape[-1]):
+        print(('Saving aqueduct for %s') % (subj_list[img_idx]))
+        subj_temp = nib.Nifti1Image(new_template[...,img_idx], img_info.affine, img_info.header)
+        pag_img.header['cal_max'] = 1 # fix header info
+        pag_img.header['cal_min'] = 0 # fix header info
+        nib.save(subj_temp, os.path.join(work_dir, subj_list[img_idx]+'_aqueduct_template.nii.gz'))
+
+    print('Saving aqueduct mean template.')
     aq_temp_img = nib.Nifti1Image(aq_template, img_info.affine, img_info.header)
+    aq_temp_img.header['cal_max'] = 1 # fix header info
+    aq_temp_img.header['cal_min'] = 0 # fix header info
     nib.save(aq_temp_img, os.path.join(work_dir, 'MEAN_aqueduct_template.nii.gz'))
