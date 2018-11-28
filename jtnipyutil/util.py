@@ -283,10 +283,10 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
         subj: string, denoting subject in BIDS format. e.g. 'sub-03'
         out_folder: string, denoting path to save output to. e.g. '/scratch/wrkdir/beliefphoto'
     Input [Optional, if none then nothing will happen when the function is run.]
-        bold_template: string, denoting path to all bold images. Can (and should) use wildcards.
-        bmask_template
-        task_template
-        conf_template
+        bold_template: string, denoting path to all bold files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
+        bmask_template: string, denoting path to all bold masks. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'
+        task_template: string, denoting path to all task files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_events.tsv'
+        conf_template: string, denoting path to all confound files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_confounds.tsv'
     '''
 
     def get_filelist(subj_id, template):
@@ -356,7 +356,7 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
                 run_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in run_cdata.columns:
                     if 'AROMAAggr' in col:
-                        run_cdata = run_cdata.rename(columns={col: col+'_r'+str(idx1+1)})
+                        run_cdata = run_cdata.rename(columns={col: col+'_r'+str(idx+1)})
                 out_cdata = out_cdata.append(run_cdata, ignore_index = True, sort=False)
         out_confname = cfile.partition('/func/')[-1].partition('run-')[0] + cfile.partition('run-')[-1][3:]
         out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
