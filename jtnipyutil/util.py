@@ -18,14 +18,14 @@ def align_mask(mask_file, native_brain, ref_brain, work_dir):
     import os
 
     # wf = pe.Workflow(name='align_mask')
-    fit_brain = pe.Node(fsl.FLIRT(),
+    fit_brain = pe.Node(fsl.FLIRT(interp='nearestneighbour'),
                         name='fit_brain')
     fit_brain.inputs.in_file = native_brain
     fit_brain.inputs.reference = ref_brain
     fit_brain.inputs.out_matrix_file = os.path.join(work_dir, mask_file.split('/')[-1]+'_matrix')
     fit_brain.run()
 
-    fit_mask = pe.Node(fsl.FLIRT(),
+    fit_mask = pe.Node(fsl.FLIRT(interp='nearestneighbour'),
                        name='fit_mask')
 
     fit_mask.inputs.in_file = mask_file
@@ -159,7 +159,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
 
     return out_mask
 
-def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_exclu = 'exclusive', spline = 0):
+def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_exclu = 'inclusive', spline = 0):
     '''
     Applies a mask, converting to reference space if necessary, using nearest neighbor classification.
     Input [Mandatory]:
@@ -187,10 +187,10 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
         mask = zoom(mask.get_data(), interp_dims.tolist(), order = spline) # interpolate mask to native space.
     else:
         mask = mask.get_data()
-    if inclu_exclu == 'exclusive':
+    if inclu_exclu == 'inclusive':
         data[mask!=1] = np.nan # mask
     else:
-        assert(inclu_exclu == 'inclusive'), 'mask must be either inclusive or exclusive'
+        assert(inclu_exclu == 'exclusive'), 'mask must be either inclusive or exclusive'
         data[mask==1] = np.nan # mask
 
     if out_format == 'file':
@@ -272,3 +272,91 @@ def files_from_template(identity_list, template):
         if any(subj in x for subj in identity_list):
             out_list.append(x)
     return out_list
+
+def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
+    '''
+    Combines bold, task, or confound files in fmriprep folder. Also can create an inclusive mask, keeping only voxels shared across all runs.
+    For task, will also create a run_onset column, which lists onsets (in seconds) relative to the start of the run. The normal 'onset' column gives a unique onset value for each event.
+    For confounds, ICAAroma components will have the run number appended to the right. So AROMAAggrComp28 becomes AROMAAggrComp28_r1.
+    Input [Mandatory]:
+        runsecs: integer, listing number of seconds per run.
+        subj: string, denoting subject in BIDS format. e.g. 'sub-03'
+        out_folder: string, denoting path to save output to. e.g. '/scratch/wrkdir/beliefphoto'
+    Input [Optional, if none then nothing will happen when the function is run.]
+        bold_template: string, denoting path to all bold images. Can (and should) use wildcards.
+        bmask_template
+        task_template
+        conf_template
+    '''
+
+    def get_filelist(subj_id, template):
+        import glob
+        temp_list = []
+        out_list = []
+        for x in glob.glob(template):
+            if subj_id in x:
+                out_list.append(x)
+        return out_list
+
+    # cycle through all masks. Keep only voxels shared in all masks. This mask will be used in the modeling pipeline.
+    if bmask_template:
+        for mask in get_filelist(subj, bmask_template):
+            if mask == get_filelist(subj, bmask_template)[0]:
+                out_maskname = mask.partition('/func/')[-1].partition('run-')[0] + mask.partition('run-')[-1][3:]
+                mask_ref = nib.load(mask)
+                fin_mask = nib.load(mask).get_data()
+                out_mask = nib.Nifti1Image(fin_mask, mask_ref.affine, mask_ref.header)
+                nib.save(out_mask, os.path.join(out_folder, out_maskname)) # save the mask from the first file encountered.
+            else:
+                fin_mask = mask_img(os.path.join(out_folder, out_maskname), # mask the original mask with each subsequent one.
+                                    mask, out_format='array')
+                out_mask = nib.Nifti1Image(fin_mask, mask_ref.affine, mask_ref.header) # save the new mask.
+                nib.save(out_mask, os.path.join(out_folder, out_maskname))
+
+    # append all bold data.
+    if bold_template:
+        for file in get_filelist(subj, bold_template):
+            if file == get_filelist(subj, bold_template)[0]:
+                ref = nib.load(file) # get header info if first file.
+                out_data = nib.load(file).get_data()
+            else:
+                run_data = nib.load(file).get_data()
+                out_data = np.append(out_data, run_data, axis=3)
+        out_boldname = file.partition('/func/')[-1].partition('run-')[0] + file.partition('run-')[-1][3:]
+        out_file = nib.Nifti1Image(out_data, ref.affine, ref.header)
+        try:
+            nib.save(out_file, os.path.join(out_folder, out_boldname))
+        except:
+            os.makedirs(out_folder)
+            nib.save(out_file, os.path.join(out_folder, out_boldname))
+
+    # append all task data.
+    if task_template:
+        for idx, tfile in enumerate(get_filelist(subj, task_template)):
+            if tfile == get_filelist(subj, task_template)[0]:
+                out_tdata = pd.read_csv(tfile, sep='\t', index_col=None) # start the dataframe if first file.
+                out_tdata['run_onset'] = out_tdata['onset']
+            else:
+                run_tdata = pd.read_csv(tfile, sep='\t', index_col=None)
+                run_tdata['run_onset'] = run_tdata['onset']
+                run_tdata['onset'] = run_tdata['onset'] + idx*runsecs
+                out_tdata = out_tdata.append(run_tdata, ignore_index = True)
+        out_taskname = tfile.partition('/func/')[-1].partition('run-')[0] + tfile.partition('run-')[-1][3:]
+        out_tdata.to_csv(os.path.join(out_folder, out_taskname), sep='\t', index=False)
+
+    # append all confound data.
+    if conf_template:
+        for idx, cfile in enumerate(get_filelist(subj, conf_template)):
+            if cfile == get_filelist(subj, conf_template)[0]:
+                out_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
+                for col in out_cdata.columns:
+                    if 'AROMAAggr' in col:
+                        out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
+            else:
+                run_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
+                for col in run_cdata.columns:
+                    if 'AROMAAggr' in col:
+                        run_cdata = run_cdata.rename(columns={col: col+'_r'+str(idx1+1)})
+                out_cdata = out_cdata.append(run_cdata, ignore_index = True, sort=False)
+        out_confname = cfile.partition('/func/')[-1].partition('run-')[0] + cfile.partition('run-')[-1][3:]
+        out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
