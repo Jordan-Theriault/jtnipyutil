@@ -31,7 +31,6 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     for subj in subj_list: # For each subjet, create aqueduct template file wtih all thresholded clusters.
         try:
             img_file = nib.load(files_from_template(subj, os.path.join(work_dir, 'subj_clusts', '*_sigmasquare_clusts.nii.gz'))[0])
-            img_info = nib.load(img_file)
         except:
             img_file  = files_from_template(subj, template)[0]
             img_info = nib.load(img_file)
@@ -69,8 +68,8 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     aq_template[aq_template != 1] = 0
     aq_template = np.mean(aq_template, axis=3)
     # set up report.
-    aq_report = pd.DataFrame(columns=['sub', 'thresh', 'clust', 'corr', 'iter'], data={'sub':subj_list, 'iter':[-1]*len(subj_list)})
-    aq_report.set_index('sub')
+    aq_report = pd.DataFrame(columns=['sub', 'thresh', 'clust', 'corr', 'iter', 'FLAG'], data={'sub':subj_list, 'iter':[0]*len(subj_list), 'FLAG':['']*len(subj_list)})
+    aq_report = aq_report.set_index('sub')
     while True:
         aq_report['iter'] = aq_report['iter'] + 1
         new_template = np.zeros(list(all_subj_data.shape[0:3]) + [all_subj_data.shape[-1]])
@@ -91,11 +90,15 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
                             if clust_corr > corr_val:
                                 print(('sub %s, thresh %s, clust %s, corr =  %s (prev max corr = %s)') %
                                       (subj, thresh, cluster, clust_corr, corr_val))
+                                aq_report.at[subj, 'thresh'] = thresh
+                                aq_report.at[subj, 'clust'] = cluster
+                                aq_report.at[subj, 'corr'] = clust_corr
+                                if clust_corr < .3:
+                                    aq_report.at[subj, 'FLAG'] = 'CHECK'
+                                else:
+                                    aq_report.at[subj, 'FLAG'] = ''
                                 new_template[...,subj_idx] = test_array
                                 corr_val = clust_corr
-                aq_report.at[subj, 'thresh'] = thresh
-                aq_report.at[subj, 'clust'] = cluster
-                aq_report.at[subj, 'corr'] = clust_corr
 
         if np.array_equal(np.around(aq_template, 4), np.around(np.mean(new_template, axis=3), 4)):
             print('We have converged on a stable average for aq_template.')
