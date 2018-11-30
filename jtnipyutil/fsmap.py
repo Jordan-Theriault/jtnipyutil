@@ -1,4 +1,4 @@
-def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, region_mask):
+def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space_mask):
     '''
     The workflow takes the following as input to wf.inputs.inputspec
     Input [Mandatory]:
@@ -24,6 +24,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
     '''
     import nibabel as nib
     import numpy as np
+    import pandas as pd
     import os
     from jtnipyutil.util import files_from_template, clust_thresh, mask_img
 
@@ -68,6 +69,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
     aq_template[aq_template != 1] = 0 #TODO consider changing this to the largest cluster. Check to see if this works across everyone.
     aq_template = np.mean(aq_template, axis=3)
 
+    # aq_report = pd.DataFrame(columns=['sub', 'thresh', 'clust', 'corr', 'iter'])
     while True:
         new_template = np.zeros(list(all_subj_data.shape[0:3]) + [all_subj_data.shape[-1]])
         for subj_idx, subj in enumerate(subj_list):
@@ -82,13 +84,16 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, regio
                             test_array = np.copy(all_subj_data[...,thresh_idx, subj_idx]) # binarize array being tested.
                             test_array[test_array != cluster] = 0
                             test_array[test_array == cluster] = 1
-                            clust_corr = np.correlate(np.ndarray.flatten(aq_template), # correlate with group mean.
-                                                      np.ndarray.flatten(test_array))[0]
+                            clust_corr = np.corrcoef(np.ndarray.flatten(aq_template), # correlate with group mean.
+                                                      np.ndarray.flatten(test_array))[0,1]
                             if clust_corr > corr_val:
                                 print(('sub %s, thresh %s, clust %s, corr =  %s (prev max corr = %s)') %
                                       (subj, thresh, cluster, clust_corr, corr_val))
                                 new_template[...,subj_idx] = test_array
                                 corr_val = clust_corr
+
+                # if aq_report['sub'].str.contains('sub-001')[0]:
+
         if np.array_equal(np.around(aq_template, 4), np.around(np.mean(new_template, axis=3), 4)):
             print('We have converged on a stable average for aq_template.')
             break
