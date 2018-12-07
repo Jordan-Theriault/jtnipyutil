@@ -2,20 +2,20 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     '''
     The workflow takes the following as input to wf.inputs.inputspec
     Input [Mandatory]:
-        subject_list: list of subject IDs
+        subj_list: list of subject IDs
             e.g. [sub-001, sub-002]
 
         p_thresh_list: list of floats representing p thresholds. Applied to resdiduals.
             e.g. [95, 97.5, 99.9]
 
-        template: dictionary to identify all files.
-            e.g. preproc_func_template = {'func': '/home/neuro/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'}
+        template: string to identify all PAG aqueduct files (using glob).
+            e.g. preproc_func_template = '/home/neuro/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
                 The template can identify a larger set f files, and the subject_list will grab a subset.
                     e.g. The template may grab sub-001, sub-002, sub-003 ...
                     But if the subject_list only includes sub-001, then only sub-001 will be used.
                     This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
-        work_dir: string, denoting path to working directoy.
+        work_dir: string, denoting path to working directory.
 
         space_mask: string, denoting path to PAG search region mask.
     Output:
@@ -126,3 +126,79 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
 
     print('Saving report')
     aq_report.to_csv(os.path.join(work_dir, 'templates', 'report.csv'))
+
+def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = .5, gm_spline=3, dilation_r=2, x_minmax=False, y_minmax=False, z_minmax=False):
+    '''
+    subj_list: list of subject IDs
+        e.g. [sub-001, sub-002]
+
+    data_template: string to identify all PAG aqueduct files (using glob).
+        e.g. data_template = os.path.join(work_dir, 'templates', '*_aqueduct_template.nii.gz')
+            The template can identify a larger set of files, and the subject_list will grab a subset.
+                e.g. The template may grab sub-001, sub-002, sub-003 ...
+                But if the subject_list only includes sub-001, then only sub-001 will be used.
+                This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
+
+    gm_template: string to identify all PAG aqueduct files (using glob).
+        e.g. gm_template = os.path.join('work_dir, 'gm', '*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz')
+
+    work_dir: string, denoting path to working directory.
+
+    gm_thresh: float specifying the probability to threshold gray matter mask.
+        Default: .5
+
+    gm_spline: integer specifying the spline order to use to reslice gray matter to native space (if necessary)
+        Default: 3
+
+    dilation_r: integer specifying the number of voxels to dilate the aqueduct.
+        Default: 2
+
+    x_minmax: list of 2 integers, denoting min and max X voxels to include in mask.
+        e.g. [0,176]. Defaults to full range of PAG aqueduct image.
+
+    y_minmax: list of 2 integers, denoting min and max Y voxels to include in mask.
+            e.g. [82,100]. Defaults to full range of PAG aqueduct image.
+
+    z_minmax: list of 2 integers, denoting min and max Z voxels to include in mask.
+        e.g. [58,176]. Defaults to full range of PAG aqueduct image.
+
+    '''
+    import nibabel as nib
+    import numpy as np
+    from skimage.transform import resize
+    from scipy.ndimage.morphology import binary_dilation
+    from skimage.morphology import ball
+    import os
+    from jtnipyutil.util import files_from_template, clust_thresh, mask_img
+
+    for subj in subj_list:
+        # get aqueduct.
+        img_file = nib.load(files_from_template(subj, data_template)[0])
+        img = img_file.get_data()
+        # get gray matter, binarize at threshold.
+        gm_file = nib.load(files_from_template(subj, gm_template)[0])
+        gm_img = gm_file.get_data()
+        if img.shape[0:3] !=  gm_img.shape[0:3]:
+            gm_img = resize(gm_img, img.shape[0:3], order=gm_spline, preserve_range=True)
+        gm_img[np.where(gm_img < gm_thresh)] = 0
+        # create mask for PAG location.
+        if not x_minmax:
+            x_minmax = [0,list(img.shape)[0]]
+        if not y_minmax:
+            y_minmax = [0,list(img.shape)[1]]
+        if not z_minmax:
+            z_minmax = [0,list(img.shape)[2]]
+        loc_mask = np.zeros(list(img.shape))
+        loc_mask[x_minmax[0]:x_minmax[1],
+             y_minmax[0]:y_minmax[1],
+             z_minmax[0]:z_minmax[1]] = 1
+        # dilate and subtract original aqueduct.
+        pag = binary_dilation(img, ball(dilation_r)).astype(img.dtype) - img
+        pag = pag*gm_img # multiply by thresholded gm probability mask.
+        pag = pag*loc_mask # threshold by general PAG location cutoffs.
+        pag_file = nib.Nifti1Image(pag, img_file.affine, img_file.header)
+        try:
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj_list[img_idx]+'_pag_mask.nii.gz'))
+        except:
+            os.makedirs(os.path.join(work_dir, 'pag_mask'))
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj_list[img_idx]+'_pag_mask.nii.gz'))
