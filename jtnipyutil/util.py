@@ -138,7 +138,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
     if mask.shape[0:3] != ref.shape[0:3]:
         interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape[0:3])
         interp_dims = interp_dims.tolist()
-        while len(interp_dims) != len(mask.shape):
+        while len(interp_dims) != len(mask.shape): # add extra dimensions, in case ref img is 4d.
             interp_dims.append(1)
         data = zoom(mask.get_data(), interp_dims, order=spline) # interpolate mask to native space.
     else:
