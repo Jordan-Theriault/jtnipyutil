@@ -198,7 +198,74 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
         pag = pag*loc_mask # threshold by general PAG location cutoffs.
         pag_file = nib.Nifti1Image(pag, img_file.affine, img_file.header)
         try:
-            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj_list[img_idx]+'_pag_mask.nii.gz'))
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii.gz'))
         except:
             os.makedirs(os.path.join(work_dir, 'pag_mask'))
-            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj_list[img_idx]+'_pag_mask.nii.gz'))
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii.gz'))
+
+def PAG_DARTEL(subj_list, PAG_template,
+               it_params=[(3, (4, 2, 1e-06), 1, 16),
+                          (3, (2, 1, 1e-06), 1, 8),
+                          (3, (1, 0.5, 1e-06), 2, 4),
+                          (3, (0.5, 0.25, 1e-06), 4, 2),
+                          (3, (0.25, 0.125, 1e-06), 16, 1),
+                          (3, (0.25, 0.125, 1e-06), 64, 0.5)],
+               opt_params=(0.01, 3, 3),
+               reg_form='Linear', b_spline=4, warp_iter=6, fwhm=[0,0,0]):
+    '''
+    Aligns all PAG images to a template (average of all images), then warps images into MNI space (using an SPM tissue probability map, see https://www.fil.ion.ucl.ac.uk/spm/doc/manual.pdf, section 25.4).
+
+    subj_list: list of subject IDs
+        e.g. [sub-001, sub-002]
+
+    PAG_template: string to identify all PAG files (using glob).
+        e.g. PAG_template = TODO
+            The template can identify a larger set of files, and the subject_list will grab a subset.
+                e.g. The template may grab sub-001, sub-002, sub-003 ...
+                But if the subject_list only includes sub-001, then only sub-001 will be used.
+                This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
+
+    it_params:
+        List 3 to 12 tuples for each iteration
+         - Inner iterations: 1 <= a long integer <= 10
+         - Regularization parameters: a tuple of the form: (a float, a float, a float)
+         - Time points for deformation model: 1, 2, 4, 8, 16, 32, 64, 128, 256, or 512
+         - smoothing parameter: 0, 0.5, 1, 2, 4, 8, 16, 32
+            DARTEL iteration parameters
+
+    opt_params: (a tuple of the form:
+             - LM regularization: a float
+             - cycles of multigrid solver: 1 <= a long integer <= 8
+             - relaxation iterations: 1 <= a long integer <= 8
+         DARTEL optimization parameters
+
+    reg_form: ('Linear' or 'Membrane' or 'Bending')
+        DARTEL: Form of regularization energy term
+    '''
+    import nibabel as nib
+    import numpy as np
+    from nipype.interfaces.spm.process import DARTEL, DARTELNORM2MNI, CreateWarped
+    import nipype.pipeline.engine as pe
+    import os
+    from jtnipyutil.util import files_from_template
+    # set up workflow.
+    DARTEL_wf = pe.Workflow(name='DARTEL_wf')
+    DARTEL_wf.base_dir = work_dir
+
+    # set up sinker
+    sinker = pe.Node(DataSink(parameterization=True), name='sinker')
+
+    # get images
+    PAG_images = files_from_template(subj_list, PAG_template)
+
+    # set up DARTEL.
+    DARTEL = pe.Node(interface=DARTEL, name='DARTEL')
+    DARTEL.inputs.image_files = PAG_images
+    DARTEL.inputs.iteration_parameters = it_params
+    DARTEL.inputs.opt_params = opt_params
+    DARTEL.inputs.regularization_form = reg_form
+
+    DARTEL_wf.connect([
+        (DARTEL, sinker, [('dartel_flow_fields', 'flow'),
+                          ('final_template_file', 'template')])
+    ])
