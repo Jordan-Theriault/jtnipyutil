@@ -1,3 +1,4 @@
+# This code is used to explore the parameters for creating a grey matter thresholded mask for use in the level 1 pipeline. The level 1 pipeline uses SUSAN smoothing to smooth grey matter only, so you should ensure that everything wanted is captured in this mask.
 import nipype.pipeline.engine as pe # pypeline engine
 import nipype.interfaces.fsl as fsl
 mod_gmmask = pe.Node(fsl.maths.MathsCommand(),

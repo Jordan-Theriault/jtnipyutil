@@ -35,9 +35,10 @@ subject_list = [
     'sub-034',
 ]
 
-######## Masking ################################################
-# mask_file = '/home/neuro/atlases/FSMAP/stress/masks/ALIGN_harvardoxford-subcortical_prob_Brain-Stem.nii.gz'
-# lvl2_tfce_wf = create_lvl2tfce_wf(mask_file)
+######## If Masking ################################################
+# lvl2_tfce_wf = create_lvl2tfce_wf(mask=True)
+# lvl2_tfce_wf.inputs.inputspec.mask_file = '/home/neuro/atlases/FSMAP/stress/masks/ALIGN_harvardoxford-subcortical_prob_Brain-Stem.nii.gz'
+
 
 ######## Workflow setup ################################################
 lvl2_tfce_wf = create_lvl2tfce_wf()
