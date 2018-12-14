@@ -271,6 +271,7 @@ def create_lvl1pipe_wf(options):
                 Use AROMA error components, from fmriprep confounds file.
             run_contrasts [boolean]:
                 If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
+
         ~~~~~~~~~~~ Set through inputs.inputspec
 
         input_dir [string]:
