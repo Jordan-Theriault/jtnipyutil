@@ -277,7 +277,7 @@ def files_from_template(identity_list, template):
             out_list.append(x)
     return out_list
 
-def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
+def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
     '''
     Combines bold, task, or confound files in fmriprep folder. Also can create an inclusive mask, keeping only voxels shared across all runs.
     For task, will also create a run_onset column, which lists onsets (in seconds) relative to the start of the run. The normal 'onset' column gives a unique onset value for each event.
@@ -287,7 +287,9 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
         subj: string, denoting subject in BIDS format. e.g. 'sub-03'
         out_folder: string, denoting path to save output to. e.g. '/scratch/wrkdir/beliefphoto'
 
-    Input [Optional, if none then nothing will happen when the function is run.]
+    Input [Optional, if no templates are given then nothing will happen when the function is run.]
+        runs: list of integers, denoting runs to keep. If ommitted, all runs kept.
+            e.g. [0, 1, 2, 3]
         bold_template: string, denoting path to all bold files.
             Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
         bmask_template: string, denoting path to all bold masks.
@@ -309,7 +311,11 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
 
     # cycle through all masks. Keep only voxels shared in all masks. This mask will be used in the modeling pipeline.
     if bmask_template:
-        for bmask in get_filelist(subj, bmask_template):
+        if runs:
+            bmask_list = list(get_filelist(subj_id, bmask_template)[i] for i in runs)
+        else:
+            bmask_list = get_filelist(subj_id, bmask_template)
+        for bmask in bmask_list:
             if bmask == get_filelist(subj, bmask_template)[0]:
                 out_bmaskname = bmask.partition('/func/')[-1].partition('run-')[0] + bmask.partition('run-')[-1][3:]
                 bmask_ref = nib.load(bmask)
@@ -324,8 +330,12 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
 
     # append all bold data.
     if bold_template:
-        for file in get_filelist(subj, bold_template):
-            if file == get_filelist(subj, bold_template)[0]:
+        if runs:
+            file_list = list(get_filelist(subj_id, bold_template)[i] for i in runs)
+        else:
+            file_list = get_filelist(subj_id, bold_template)
+        for file in file_list:
+            if file == file_list[0]:
                 ref = nib.load(file) # get header info if first file.
                 out_data = nib.load(file).get_data()
             else:
@@ -341,8 +351,12 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
 
     # append all task data.
     if task_template:
-        for idx, tfile in enumerate(get_filelist(subj, task_template)):
-            if tfile == get_filelist(subj, task_template)[0]:
+        if runs:
+            task_list = list(get_filelist(subj_id, task_template)[i] for i in runs)
+        else:
+            task_list = get_filelist(subj_id, task_template)
+        for idx, tfile in enumerate(task_list):
+            if tfile == task_list[0]:
                 out_tdata = pd.read_csv(tfile, sep='\t', index_col=None) # start the dataframe if first file.
                 out_tdata['run_onset'] = out_tdata['onset']
             else:
@@ -355,8 +369,12 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
 
     # append all confound data.
     if conf_template:
-        for idx, cfile in enumerate(get_filelist(subj, conf_template)):
-            if cfile == get_filelist(subj, conf_template)[0]:
+        if runs:
+            conf_template = list(get_filelist(subj_id, conf_template)[i] for i in runs)
+        else:
+            conf_template = get_filelist(subj_id, conf_template)
+        for idx, cfile in enumerate(conf_template):
+            if cfile == conf_template[0]:
                 out_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in out_cdata.columns:
                     if 'AROMAAggr' in col:
