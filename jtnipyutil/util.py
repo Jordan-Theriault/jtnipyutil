@@ -196,7 +196,9 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
         data[mask==1] = np.nan # mask
 
     if out_format == 'file':
-        assert (work_dir != ''), 'You must give a value for work_dir'
+        if work_dir == '':
+            print('No save directory specified, saving to current working direction')
+            work_dir = os.getcwd()
         out_img = nib.Nifti1Image(data, img.affine, img.header)
         nib.save(out_img, os.path.join(work_dir, img_name + mask_name + '.nii.gz'))
         out_img = os.path.join(work_dir, img_name + mask_name + '.nii.gz')
@@ -284,11 +286,16 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
         runsecs: integer, listing number of seconds per run.
         subj: string, denoting subject in BIDS format. e.g. 'sub-03'
         out_folder: string, denoting path to save output to. e.g. '/scratch/wrkdir/beliefphoto'
+
     Input [Optional, if none then nothing will happen when the function is run.]
-        bold_template: string, denoting path to all bold files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
-        bmask_template: string, denoting path to all bold masks. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'
-        task_template: string, denoting path to all task files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_events.tsv'
-        conf_template: string, denoting path to all confound files. Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_confounds.tsv'
+        bold_template: string, denoting path to all bold files.
+            Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
+        bmask_template: string, denoting path to all bold masks.
+            Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'
+        task_template: string, denoting path to all task files.
+            Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_events.tsv'
+        conf_template: string, denoting path to all confound files.
+            Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_confounds.tsv'
     '''
 
     def get_filelist(subj_id, template):
@@ -302,18 +309,18 @@ def combine_runs(runsecs, subj, out_folder, bold_template = False, bmask_templat
 
     # cycle through all masks. Keep only voxels shared in all masks. This mask will be used in the modeling pipeline.
     if bmask_template:
-        for mask in get_filelist(subj, bmask_template):
-            if mask == get_filelist(subj, bmask_template)[0]:
-                out_maskname = mask.partition('/func/')[-1].partition('run-')[0] + mask.partition('run-')[-1][3:]
-                mask_ref = nib.load(mask)
-                fin_mask = nib.load(mask).get_data()
-                out_mask = nib.Nifti1Image(fin_mask, mask_ref.affine, mask_ref.header)
-                nib.save(out_mask, os.path.join(out_folder, out_maskname)) # save the mask from the first file encountered.
+        for bmask in get_filelist(subj, bmask_template):
+            if bmask == get_filelist(subj, bmask_template)[0]:
+                out_bmaskname = bmask.partition('/func/')[-1].partition('run-')[0] + bmask.partition('run-')[-1][3:]
+                bmask_ref = nib.load(bmask)
+                fin_bmask = nib.load(bmask).get_data()
+                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header)
+                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname)) # save the mask from the first file encountered.
             else:
-                fin_mask = mask_img(os.path.join(out_folder, out_maskname), # mask the original mask with each subsequent one.
-                                    mask, out_format='array')
-                out_mask = nib.Nifti1Image(fin_mask, mask_ref.affine, mask_ref.header) # save the new mask.
-                nib.save(out_mask, os.path.join(out_folder, out_maskname))
+                fin_bmask = mask_img(os.path.join(out_folder, out_bmaskname), # mask the original mask with each subsequent one.
+                                    bmask, out_format='array')
+                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header) # save the new mask.
+                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname))
 
     # append all bold data.
     if bold_template:
