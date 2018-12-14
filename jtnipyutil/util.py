@@ -130,7 +130,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
     '''
     import numpy as np
     import nibabel as nib
-    import os.path
+    import os
     from scipy.ndimage import zoom
     mask = nib.load(mask_file)
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
@@ -145,7 +145,9 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
         print('mask is already in reference space!')
 
     if out_format == 'file':
-        assert (work_dir != ''), 'You must give a value for work_dir'
+        if work_dir == '':
+            print('No save directory specified, saving to current working direction')
+            work_dir = os.getcwd()
         out_mask = nib.Nifti1Image(data, ref.affine, mask.header)
         out_mask.header['dim'] = ref.header['dim']
         out_mask.header['pixdim'] = ref.header['pixdim']
