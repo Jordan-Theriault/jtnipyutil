@@ -103,7 +103,7 @@ def create_lvl2tfce_wf(mask=False):
             con_file = 'cope'+contrast+'.nii.gz'
             template={
                 'cope': os.path.join(input_dir, 'nosmooth', 'sub-*/model/sub-*',
-                         'data', con_file)
+                         '_modelestimate0', con_file)
             }
             out_path = os.path.join(output_dir, 'nosmooth')
         else:
@@ -111,7 +111,7 @@ def create_lvl2tfce_wf(mask=False):
             con_file = 'cope'+contrast+'.nii.gz'
             template={
                 'cope': os.path.join(input_dir, 'smooth', 'sub-*/model/sub-*',
-                        fwhm_path, 'data', con_file)
+                        fwhm_path, '_modelestimate0', con_file)
             }
             out_path = os.path.join(output_dir, fwhm)
         if not os.path.isdir(out_path):
