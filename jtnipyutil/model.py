@@ -481,7 +481,7 @@ def create_lvl1pipe_wf(options):
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
-            function=fit_msk),
+            function=fit_mask),
                             name='fit_mask')
 
     ################## Setup confounds
