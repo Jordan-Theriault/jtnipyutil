@@ -198,18 +198,18 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
         pag = pag*loc_mask # threshold by general PAG location cutoffs.
         pag_file = nib.Nifti1Image(pag, img_file.affine, img_file.header)
         try:
-            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii.gz'))
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
         except:
             os.makedirs(os.path.join(work_dir, 'pag_mask'))
-            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii.gz'))
+            nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
 
-def PAG_DARTEL(subj_list, PAG_template,
+def PAG_DARTEL(subj_list, PAG_template, work_dir,
                it_params=[(3, (4, 2, 1e-06), 1, 16),
                           (3, (2, 1, 1e-06), 1, 8),
                           (3, (1, 0.5, 1e-06), 2, 4),
                           (3, (0.5, 0.25, 1e-06), 4, 2),
                           (3, (0.25, 0.125, 1e-06), 16, 1),
-                          (3, (0.25, 0.125, 1e-06), 64, 0.5)],
+                          (3, (0.125, 0.0625, 1e-06), 32, 0.5)],
                opt_params=(0.01, 3, 3),
                reg_form='Linear', b_spline=4, warp_iter=6, fwhm=[0,0,0]):
     '''
@@ -244,7 +244,8 @@ def PAG_DARTEL(subj_list, PAG_template,
     '''
     import nibabel as nib
     import numpy as np
-    from nipype.interfaces.spm.process import DARTEL, DARTELNORM2MNI, CreateWarped
+    from nipype.interfaces.spm.preprocess import DARTEL, DARTELNorm2MNI, CreateWarped
+    from nipype.interfaces.io import DataSink
     import nipype.pipeline.engine as pe
     import os
     from jtnipyutil.util import files_from_template
@@ -259,13 +260,17 @@ def PAG_DARTEL(subj_list, PAG_template,
     PAG_images = files_from_template(subj_list, PAG_template)
 
     # set up DARTEL.
-    DARTEL = pe.Node(interface=DARTEL, name='DARTEL')
-    DARTEL.inputs.image_files = PAG_images
+    DARTEL = pe.Node(interface=DARTEL(), name='DARTEL')
+    DARTEL.inputs.image_files = [PAG_images]
     DARTEL.inputs.iteration_parameters = it_params
-    DARTEL.inputs.opt_params = opt_params
+    DARTEL.inputs.optimization_parameters = opt_params
     DARTEL.inputs.regularization_form = reg_form
 
     DARTEL_wf.connect([
         (DARTEL, sinker, [('dartel_flow_fields', 'flow'),
-                          ('final_template_file', 'template')])
+                          ('final_template_file', 'template'),
+                          ('template_files', 'template.@prelim')])
     ])
+    DARTEL_wf.run()
+
+    ## TODO - warp beta images also.
