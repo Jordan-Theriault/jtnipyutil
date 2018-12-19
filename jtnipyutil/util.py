@@ -299,6 +299,10 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
         conf_template: string, denoting path to all confound files.
             Can (and should) use wildcards. e.g. '/scratch/data/sub-*/func/sub-*_task-beliefphoto_run-*_bold_confounds.tsv'
     '''
+    from jtnipyutil.util import mask_img
+    import nibabel as nib
+    import os
+    import pandas as pd
 
     def get_filelist(subj_id, template):
         import glob
@@ -309,31 +313,12 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
                 out_list.append(x)
         return out_list
 
-    # cycle through all masks. Keep only voxels shared in all masks. This mask will be used in the modeling pipeline.
-    if bmask_template:
-        if runs:
-            bmask_list = list(get_filelist(subj_id, bmask_template)[i] for i in runs)
-        else:
-            bmask_list = get_filelist(subj_id, bmask_template)
-        for bmask in bmask_list:
-            if bmask == get_filelist(subj, bmask_template)[0]:
-                out_bmaskname = bmask.partition('/func/')[-1].partition('run-')[0] + bmask.partition('run-')[-1][3:]
-                bmask_ref = nib.load(bmask)
-                fin_bmask = nib.load(bmask).get_data()
-                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header)
-                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname)) # save the mask from the first file encountered.
-            else:
-                fin_bmask = mask_img(os.path.join(out_folder, out_bmaskname), # mask the original mask with each subsequent one.
-                                    bmask, out_format='array')
-                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header) # save the new mask.
-                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname))
-
     # append all bold data.
     if bold_template:
         if runs:
-            file_list = list(get_filelist(subj_id, bold_template)[i] for i in runs)
+            file_list = list(get_filelist(subj, bold_template)[i] for i in runs)
         else:
-            file_list = get_filelist(subj_id, bold_template)
+            file_list = get_filelist(subj, bold_template)
         for file in file_list:
             if file == file_list[0]:
                 ref = nib.load(file) # get header info if first file.
@@ -349,14 +334,34 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
             os.makedirs(out_folder)
             nib.save(out_file, os.path.join(out_folder, out_boldname))
 
+    # cycle through all masks. Keep only voxels shared in all masks. This mask will be used in the modeling pipeline.
+    if bmask_template:
+        if runs:
+            bmask_list = list(get_filelist(subj, bmask_template)[i] for i in runs)
+        else:
+            bmask_list = get_filelist(subj, bmask_template)
+        for bmask in bmask_list:
+            if bmask == get_filelist(subj, bmask_template)[0]:
+                out_bmaskname = bmask.partition('/func/')[-1].partition('run-')[0] + bmask.partition('run-')[-1][3:]
+                bmask_ref = nib.load(bmask)
+                fin_bmask = nib.load(bmask).get_data()
+                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header)
+                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname)) # save the mask from the first file encountered.
+            else:
+                fin_bmask = mask_img(os.path.join(out_folder, out_bmaskname), # mask the original mask with each subsequent one.
+                                    bmask, out_format='array')
+                out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header) # save the new mask.
+                nib.save(out_bmask, os.path.join(out_folder, out_bmaskname))
+
     # append all task data.
     if task_template:
         if runs:
-            task_list = list(get_filelist(subj_id, task_template)[i] for i in runs)
+            task_list = list(get_filelist(subj, task_template)[i] for i in runs)
         else:
-            task_list = get_filelist(subj_id, task_template)
+            task_list = get_filelist(subj, task_template)
         for idx, tfile in enumerate(task_list):
             if tfile == task_list[0]:
+                out_taskname = tfile.partition('/func/')[-1].partition('run-')[0] + tfile.partition('run-')[-1][3:]
                 out_tdata = pd.read_csv(tfile, sep='\t', index_col=None) # start the dataframe if first file.
                 out_tdata['run_onset'] = out_tdata['onset']
             else:
@@ -364,15 +369,14 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
                 run_tdata['run_onset'] = run_tdata['onset']
                 run_tdata['onset'] = run_tdata['onset'] + idx*runsecs
                 out_tdata = out_tdata.append(run_tdata, ignore_index = True)
-        out_taskname = tfile.partition('/func/')[-1].partition('run-')[0] + tfile.partition('run-')[-1][3:]
         out_tdata.to_csv(os.path.join(out_folder, out_taskname), sep='\t', index=False)
 
     # append all confound data.
     if conf_template:
         if runs:
-            conf_template = list(get_filelist(subj_id, conf_template)[i] for i in runs)
+            conf_template = list(get_filelist(subj, conf_template)[i] for i in runs)
         else:
-            conf_template = get_filelist(subj_id, conf_template)
+            conf_template = get_filelist(subj, conf_template)
         for idx, cfile in enumerate(conf_template):
             if cfile == conf_template[0]:
                 out_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
