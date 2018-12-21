@@ -131,7 +131,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
     import numpy as np
     import nibabel as nib
     import os
-    from scipy.ndimage import zoom
+    from skimage.transform import resize
     mask = nib.load(mask_file)
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
     ref = nib.load(ref_file)
@@ -140,7 +140,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
         interp_dims = interp_dims.tolist()
         while len(interp_dims) != len(mask.shape): # add extra dimensions, in case ref img is 4d.
             interp_dims.append(1)
-        data = zoom(mask.get_data(), interp_dims, order=spline) # interpolate mask to native space.
+        data = resize(mask.get_data(), interp_dims, order=spline, preserve_range=True) # interpolate mask to native space.
     else:
         print('mask is already in reference space!')
 
@@ -176,7 +176,7 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
     import numpy as np
     import nibabel as nib
     import os.path
-    from scipy.ndimage import zoom
+    from skimage.transform import resize
     print(('loading mask file: %s') % mask_file)
     mask = nib.load(mask_file)
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
@@ -186,7 +186,7 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
     data = nib.load(img_file).get_data() # grab data
     if mask.shape != data.shape[0:3]:
         interp_dims = np.array(data.shape[0:3])/np.array(mask.shape)
-        mask = zoom(mask.get_data(), interp_dims.tolist(), order = spline) # interpolate mask to native space.
+        mask = resize(mask.get_data(), interp_dims.tolist(), order = spline, preserve_range=True) # interpolate mask to native space.
     else:
         mask = mask.get_data()
     if inclu_exclu == 'inclusive':
