@@ -279,7 +279,8 @@ def files_from_template(identity_list, template):
 
 def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
     '''
-    Combines bold, task, or confound files in fmriprep folder. Also can create an inclusive mask, keeping only voxels shared across all runs.
+    Combines bold, task, or confound files in fmriprep folder, ASUMMNGS BIDS FOLDER STRUCTURE.
+    Also can create an inclusive mask, keeping only voxels shared across all runs.
     For task, will also create a run_onset column, which lists onsets (in seconds) relative to the start of the run. The normal 'onset' column gives a unique onset value for each event.
     For confounds, ICAAroma components will have the run number appended to the right. So AROMAAggrComp28 becomes AROMAAggrComp28_r1.
     Input [Mandatory]:
@@ -303,6 +304,7 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
     import nibabel as nib
     import os
     import pandas as pd
+    import numpy as np
 
     def get_filelist(subj_id, template):
         import glob
@@ -374,20 +376,25 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
     # append all confound data.
     if conf_template:
         if runs:
-            conf_template = list(get_filelist(subj, conf_template)[i] for i in runs)
+            conf_list = list(get_filelist(subj, conf_template)[i] for i in runs)
         else:
-            conf_template = get_filelist(subj, conf_template)
-        for idx, cfile in enumerate(conf_template):
-            if cfile == conf_template[0]:
+            conf_list = get_filelist(subj, conf_template)
+        for idx, cfile in enumerate(conf_list):
+            if cfile == conf_list[0]:
                 out_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in out_cdata.columns:
                     if 'AROMAAggr' in col:
+                        out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
+                    if 'NonSteadyStateOutlier' in col:
                         out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
             else:
                 run_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in run_cdata.columns:
                     if 'AROMAAggr' in col:
                         run_cdata = run_cdata.rename(columns={col: col+'_r'+str(idx+1)})
+                    if 'NonSteadyStateOutlier' in col:
+                        out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
                 out_cdata = out_cdata.append(run_cdata, ignore_index = True, sort=False)
+        out_cdata[out_cdata.isna()] = 0
         out_confname = cfile.partition('/func/')[-1].partition('run-')[0] + cfile.partition('run-')[-1][3:]
         out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
