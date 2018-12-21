@@ -136,11 +136,10 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
     mask_name = '_'+mask_file.split('/')[-1].split('.')[0]
     ref = nib.load(ref_file)
     if mask.shape[0:3] != ref.shape[0:3]:
-        interp_dims = np.array(ref.shape[0:3])/np.array(mask.shape[0:3])
-        interp_dims = interp_dims.tolist()
-        while len(interp_dims) != len(mask.shape): # add extra dimensions, in case ref img is 4d.
-            interp_dims.append(1)
-        data = resize(mask.get_data(), interp_dims, order=spline, preserve_range=True) # interpolate mask to native space.
+        new_shape = list(ref.shape[0:3])
+        while len(new_shape) != len(mask.shape): # add extra dimensions, in case ref img is 4d.
+            new_shape.append(1)
+        data = resize(mask.get_data(), new_shape, order=spline, preserve_range=True) # interpolate mask to native space.
     else:
         print('mask is already in reference space!')
 
