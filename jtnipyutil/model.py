@@ -490,19 +490,23 @@ def create_lvl1pipe_wf(options):
         import numpy as np
         import pandas as pd
         df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
-        confounds = df_cf[noise_regressors] # for output
         transfrm_list = []
-        for entry in noise_regressors: # get entries marked with *, indicating they should be transformed.
+        for idx, entry in enumerate(noise_regressors): # get entries marked with *, indicating they should be transformed.
             if '*' in entry:
                 transfrm_list.append(entry.replace('*', ''))
+                noise_regressors[idx] = entry.replace('*', '')
+
+        confounds = df_cf[noise_regressors]
         transfrmd_cnfds = df_cf[transfrm_list] # for transforms
         TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
         if 'quad' in noise_transforms:
-            quad = np.square(df_cf[transfrmd_cnfds])
+            quad = np.square(transfrmd_cnfds)
             confounds = confounds.join(quad, rsuffix='_quad')
         if 'tderiv' in noise_transforms:
             tderiv = pd.DataFrame(pd.Series(np.gradient(transfrmd_cnfds[col]), TR_time)
                                   for col in transfrmd_cnfds).T
+            tderiv.columns = transfrmd_cnfds.columns
+            tderiv.index = confounds.index
             confounds = confounds.join(tderiv, rsuffix='_tderiv')
         if 'quadtderiv' in noise_transforms:
             quadtderiv = np.square(tderiv)
@@ -587,6 +591,7 @@ def create_lvl1pipe_wf(options):
     despike = pe.Node(Despike(),
                       name='despike')
     # despike.inputs.in_file = # From Mask
+    despike.inputs.outputtype = 'NIFTI_GZ'
 
     from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
     smooth_wf = create_susan_smooth()
