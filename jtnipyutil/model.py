@@ -580,11 +580,12 @@ def create_lvl1pipe_wf(options):
 
 
     ################## Mask functional data.
-    from nipype.interfaces.fsl.maths import ApplyMask
-    maskBold = pe.Node(ApplyMask(),
+    from nipype.interfaces.fsl.maths import BinaryMaths
+    maskBold = pe.Node(BinaryMaths(),
                       name='maskBold')
     # maskBold.inputs.in_file # From get_bold
-    # maskBold.inputs.mask_file # From get_mask
+    # maskBold.inputs.operand_file # From get_mask
+    maskBold.inputs.operation = 'mul'
 
     ################## Despike
     from nipype.interfaces.afni import Despike
@@ -674,7 +675,7 @@ def create_lvl1pipe_wf(options):
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
         (get_task, make_bunch, [('out_file', 'task_file')]),
         (make_bunch, specify_model, [('subject_info', 'subject_info')]),
-        (get_mask, maskBold, [('out_file', 'mask_file')]),
+        (get_mask, maskBold, [('out_file', 'operand_file')]),
         ])
 
     if options['censoring'] == 'despike':
