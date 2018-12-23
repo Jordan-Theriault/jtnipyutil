@@ -142,6 +142,7 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
         data = resize(mask.get_data(), new_shape, order=spline, preserve_range=True) # interpolate mask to native space.
     else:
         print('mask is already in reference space!')
+        data = mask.get_data()
 
     if out_format == 'file':
         if work_dir == '':
