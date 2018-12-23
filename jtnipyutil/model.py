@@ -580,12 +580,13 @@ def create_lvl1pipe_wf(options):
 
 
     ################## Mask functional data.
-    from nipype.interfaces.fsl.maths import BinaryMaths
-    maskBold = pe.Node(BinaryMaths(),
+    from jtnipyutil.util import mask_img
+    maskBold = pe.Node(Function(input_names=['img_file', 'mask_file'],
+                                output_names=['out_file'],
+                                function=mask_img),
                       name='maskBold')
-    # maskBold.inputs.in_file # From get_bold
-    # maskBold.inputs.operand_file # From get_mask
-    maskBold.inputs.operation = 'mul'
+    # maskBold.inputs.img_file # From get_bold, or smooth_wf
+    # maskBold.inputs.mask_file # From get_mask
 
     ################## Despike
     from nipype.interfaces.afni import Despike
@@ -675,7 +676,7 @@ def create_lvl1pipe_wf(options):
         (get_confounds, make_bunch, [('confounds', 'confounds')]),
         (get_task, make_bunch, [('out_file', 'task_file')]),
         (make_bunch, specify_model, [('subject_info', 'subject_info')]),
-        (get_mask, maskBold, [('out_file', 'operand_file')]),
+        (get_mask, maskBold, [('out_file', 'mask_file')]),
         ])
 
     if options['censoring'] == 'despike':
@@ -694,7 +695,7 @@ def create_lvl1pipe_wf(options):
                 (fit_mask, smooth_wf, [('out_mask', 'inputnode.mask_file')]),
                 (fit_mask, sinker, [('out_mask', 'smoothing_mask')]),
                 (despike, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'in_file')]),
+                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'img_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
@@ -717,13 +718,13 @@ def create_lvl1pipe_wf(options):
                 (fit_mask, smooth_wf, [('out_mask', 'inputnode.mask_file')]),
                 (fit_mask, sinker, [('out_mask', 'smoothing_mask')]),
                 (get_bold, smooth_wf, [('out_file', 'inputnode.in_files')]),
-                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'in_file')]),
+                (smooth_wf, maskBold, [(('outputnode.smoothed_files', unlist), 'img_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
         else:
             lvl1pipe_wf.connect([
-                (get_bold, maskBold, [('out_file', 'in_file')]),
+                (get_bold, maskBold, [('out_file', 'img_file')]),
                 (maskBold, specify_model, [('out_file', 'functional_runs')]),
                 (maskBold, modelfit, [('out_file', 'inputspec.functional_data')])
                 ])
