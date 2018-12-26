@@ -277,7 +277,7 @@ def files_from_template(identity_list, template):
             out_list.append(x)
     return out_list
 
-def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
+def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_template = False, task_template = False, conf_template = False):
     '''
     Combines bold, task, or confound files in fmriprep folder, ASUMMNGS BIDS FOLDER STRUCTURE.
     Also can create an inclusive mask, keeping only voxels shared across all runs.
@@ -313,6 +313,7 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
         for x in glob.glob(template):
             if subj_id in x:
                 out_list.append(x)
+        out_list.sort()
         return out_list
 
     # append all bold data.
@@ -328,7 +329,7 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
             else:
                 run_data = nib.load(file).get_data()
                 out_data = np.append(out_data, run_data, axis=3)
-        out_boldname = file.partition('/func/')[-1].partition('run-')[0] + file.partition('run-')[-1][3:]
+        out_boldname = file.split('/')[-1].partition('run-')[0] + file.split('/')[-1].partition('run-')[-1][3:]
         out_file = nib.Nifti1Image(out_data, ref.affine, ref.header)
         try:
             nib.save(out_file, os.path.join(out_folder, out_boldname))
@@ -344,7 +345,7 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
             bmask_list = get_filelist(subj, bmask_template)
         for bmask in bmask_list:
             if bmask == get_filelist(subj, bmask_template)[0]:
-                out_bmaskname = bmask.partition('/func/')[-1].partition('run-')[0] + bmask.partition('run-')[-1][3:]
+                out_bmaskname = bmask.split('/')[-1].partition('run-')[0] + bmask.split('/')[-1].partition('run-')[-1][3:]
                 bmask_ref = nib.load(bmask)
                 fin_bmask = nib.load(bmask).get_data()
                 out_bmask = nib.Nifti1Image(fin_bmask, bmask_ref.affine, bmask_ref.header)
@@ -363,13 +364,10 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
             task_list = get_filelist(subj, task_template)
         for idx, tfile in enumerate(task_list):
             if tfile == task_list[0]:
-                out_taskname = tfile.partition('/func/')[-1].partition('run-')[0] + tfile.partition('run-')[-1][3:]
+                out_taskname = tfile.split('/')[-1].partition('run-')[0] + tfile.split('/')[-1].partition('run-')[-1][3:]
                 out_tdata = pd.read_csv(tfile, sep='\t', index_col=None) # start the dataframe if first file.
-                out_tdata['run_onset'] = out_tdata['onset']
             else:
                 run_tdata = pd.read_csv(tfile, sep='\t', index_col=None)
-                run_tdata['run_onset'] = run_tdata['onset']
-                run_tdata['onset'] = run_tdata['onset'] + idx*runsecs
                 out_tdata = out_tdata.append(run_tdata, ignore_index = True)
         out_tdata.to_csv(os.path.join(out_folder, out_taskname), sep='\t', index=False)
 
@@ -396,5 +394,5 @@ def combine_runs(runsecs, subj, out_folder, runs=False, bold_template = False, b
                         out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
                 out_cdata = out_cdata.append(run_cdata, ignore_index = True, sort=False)
         out_cdata[out_cdata.isna()] = 0
-        out_confname = cfile.partition('/func/')[-1].partition('run-')[0] + cfile.partition('run-')[-1][3:]
+        out_confname = cfile.split('/')[-1].partition('run-')[0] + cfile.split('/')[-1].partition('run-')[-1][3:]
         out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
