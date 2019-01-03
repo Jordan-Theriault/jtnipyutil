@@ -190,10 +190,10 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
     else:
         mask = mask.get_data()
     if inclu_exclu == 'inclusive':
-        data[mask!=1] = np.nan # mask
+        data[mask!=1] = 0 # mask
     else:
         assert(inclu_exclu == 'exclusive'), 'mask must be either inclusive or exclusive'
-        data[mask==1] = np.nan # mask
+        data[mask==1] = 0 # mask
 
     if out_format == 'file':
         if work_dir == '':
@@ -284,7 +284,6 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
     For task, will also create a run_onset column, which lists onsets (in seconds) relative to the start of the run. The normal 'onset' column gives a unique onset value for each event.
     For confounds, ICAAroma components will have the run number appended to the right. So AROMAAggrComp28 becomes AROMAAggrComp28_r1.
     Input [Mandatory]:
-        runsecs: integer, listing number of seconds per run.
         subj: string, denoting subject in BIDS format. e.g. 'sub-03'
         out_folder: string, denoting path to save output to. e.g. '/scratch/wrkdir/beliefphoto'
 
