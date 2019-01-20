@@ -270,6 +270,9 @@ def create_lvl1pipe_wf(options):
                 Use AROMA error components, from fmriprep confounds file.
             run_contrasts [boolean]:
                 If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
+            keep_resid [boolean]:
+                If False, then only sum of squares residuals will be outputted. If True, then timecourse residuals kept.
+            TODO - add option to include/exclude residuals.
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -745,11 +748,14 @@ def create_lvl1pipe_wf(options):
                             ('modelgen.design_cov', 'design.@covmatriximg'),
                             ('modelgen.design_image', 'design.@designimg'),
                             ('modelestimate.logfile', 'design.@log'),
-                            ('modelestimate.residual4d', 'model.@resid'),
                             ('modelestimate.sigmasquareds', 'model.@resid_sum'),
                             ('modelestimate.fstats', 'stats.@fstats'),
                             ('modelestimate.thresholdac', 'model.@serial_corr'),
                            ])
         ])
-
+    if options['keep_resid']:
+        lvl1pipe_wf.connect([
+            (modelfit, sinker, [('modelestimate.residual4d', 'model.@resid')
+                               ])
+            ])
     return lvl1pipe_wf
