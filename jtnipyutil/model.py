@@ -492,10 +492,21 @@ def create_lvl1pipe_wf(options):
         import numpy as np
         import pandas as pd
         df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
+        if len(df_cf.columns[df_cf.columns.to_series().str.contains('_r')]) > 0: # if multiple runs were merged then fix the noise_regresor list.
+            noise_regressors_r = []
+            for run in range(1, 1000):
+                run_sufx = '_r' + str(run)
+                if len(df_cf.columns[df_cf.columns.to_series().str.contains(run_sufx)]) == 0: # if no run for current loop found, break and proceed.
+                    break
+                noise_regressors_r.append([s + run_sufx for s in noise_regressors])
+            noise_regressors = []
+            for sublist in noise_regressors_r:
+                for item in sublist:
+                    noise_regressors.append(item)
         transfrm_list = []
         for idx, entry in enumerate(noise_regressors): # get entries marked with *, indicating they should be transformed.
             if '*' in entry:
-                transfrm_list.append(entry.replace('*', ''))
+                transfrm_list.append(entry.replace('*', '')) # add entry to transformation list if it has *.
                 noise_regressors[idx] = entry.replace('*', '')
 
         confounds = df_cf[noise_regressors]
@@ -517,6 +528,8 @@ def create_lvl1pipe_wf(options):
             confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]])
         if options['ICA_AROMA']:
             confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]])
+        if len(df_cf.columns[df_cf.columns.to_series().str.contains('run_')]) > 0: # get runs if there are any, assuming combine_runs was used.
+            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('run_')]])
         return confounds
 
     get_confounds = pe.Node(Function(input_names=['confound_file', 'noise_transforms',

@@ -360,6 +360,7 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
         if runs:
             task_list = list(get_filelist(subj, task_template)[i] for i in runs)
         else:
+            print('test')
             task_list = get_filelist(subj, task_template)
         for idx, tfile in enumerate(task_list):
             if tfile == task_list[0]:
@@ -368,6 +369,10 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
             else:
                 run_tdata = pd.read_csv(tfile, sep='\t', index_col=None)
                 out_tdata = out_tdata.append(run_tdata, ignore_index = True)
+        for run in out_tdata['run'].unique():
+            trial_names = out_tdata['trial_type'].loc[out_tdata['run'] == run].copy()
+            trial_names = trial_names + '_r' + run.astype(str)
+            out_tdata['trial_type'].loc[out_tdata['run'] == run] = trial_names
         out_tdata.to_csv(os.path.join(out_folder, out_taskname), sep='\t', index=False)
 
     # append all confound data.
@@ -380,17 +385,13 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
             if cfile == conf_list[0]:
                 out_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in out_cdata.columns:
-                    if 'AROMAAggr' in col:
                         out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
-                    if 'NonSteadyStateOutlier' in col:
-                        out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
+                out_cdata['run_'+str(idx+1)] = 1
             else:
                 run_cdata = pd.read_csv(cfile, sep='\t', index_col=None)
                 for col in run_cdata.columns:
-                    if 'AROMAAggr' in col:
                         run_cdata = run_cdata.rename(columns={col: col+'_r'+str(idx+1)})
-                    if 'NonSteadyStateOutlier' in col:
-                        out_cdata = out_cdata.rename(columns={col: col+'_r'+str(idx+1)})
+                run_cdata['run_'+str(idx+1)] = 1
                 out_cdata = out_cdata.append(run_cdata, ignore_index = True, sort=False)
         out_cdata[out_cdata.isna()] = 0
         out_confname = cfile.split('/')[-1].partition('run-')[0] + cfile.split('/')[-1].partition('run-')[-1][3:]
