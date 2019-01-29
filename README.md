@@ -6,9 +6,10 @@ fMRI Python utility functions
 ## Neurodocker command:
 docker run --rm kaczmarj/neurodocker:master generate docker \
 --base debian:stretch --pkg-manager apt \
---install gcc g++ graphviz tree \
+--install gcc g++ graphviz tree bsdtar \
           git vim emacs-nox nano less ncdu \
           tig  \
+--run "export tar='bsdtar'" \
 --fsl version=5.0.11 \
 --ants version=2.2.0 \
 --convert3d version=1.0.0 \
@@ -24,7 +25,8 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
                mne deepdish hypertools ipywidgets pynv six nibabel joblib
                git+https://github.com/poldracklab/fmriprep.git
                git+https://github.com/poldracklab/niworkflows.git" \
-  activate=True
+  activate=True \
+--copy jtnipyutil /opt/miniconda-latest/envs/py36/lib/python3.6/site-packages/jtnipyutil
 
 
 ## Usage Example:
@@ -33,7 +35,7 @@ docker run -it --rm -p 8888:8888 \
   -v ~/path/to/output/dir:/home/neuro/output \
   -v ~/path/to/scripts/dir:/home/neuro/scripts \
   -v ~/path/to/working/dir:/home/neuro/workdir \
-  my_nipype
+  jtheriaultpsych/jtnipyutil
 
 ## Once open,  jupyter workbook can be opened with the folling:
 jupyter notebook --port=8888 --no-browser --ip=0.0.0.0 --allow-root
