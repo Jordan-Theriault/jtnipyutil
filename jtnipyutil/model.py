@@ -272,7 +272,6 @@ def create_lvl1pipe_wf(options):
                 If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
             keep_resid [boolean]:
                 If False, then only sum of squares residuals will be outputted. If True, then timecourse residuals kept.
-            TODO - add option to include/exclude residuals.
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -442,7 +441,7 @@ def create_lvl1pipe_wf(options):
         for file in temp_list: # ensure no duplicate entries.
             if file not in out_list:
                 out_list.append(file)
-        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. Either no data, or multiple files were found.'
+        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. subjectID: %s, template: %s, returned: %r' (subj_id, template, out_list)
         out_file = out_list[0]
         return out_file
 
@@ -555,7 +554,6 @@ def create_lvl1pipe_wf(options):
         df = pd.DataFrame(pd.read_csv(tf, sep='\t', parse_dates=False))
         output = Bunch(conditions= params,
                            onsets=[list(df[df[design_col] == f].onset) for f in params],
-                                #TODO - allow .onset and .duration to be set in inputspec Set inputspec to ons_dur_tt, and make it a 3 value list [onset, duration, trial_type]. Customize all names this way.
                            durations=[list(set(df[df[design_col] == f].duration)) for f in params],
                            amplitudes=None,
                            tmod=None,
