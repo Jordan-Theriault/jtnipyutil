@@ -441,7 +441,7 @@ def create_lvl1pipe_wf(options):
         for file in temp_list: # ensure no duplicate entries.
             if file not in out_list:
                 out_list.append(file)
-        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. subjectID: %s, template: %s' (subj_id, template)
+        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. either one file, or multiple files returned.'
         out_file = out_list[0]
         return out_file
 
