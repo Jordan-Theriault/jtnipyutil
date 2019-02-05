@@ -444,3 +444,61 @@ def sphere_roi_from_list(template_file, subj_list, coord_list, radius, out_dir, 
         except:
             os.makedirs(out_dir)
             nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'ROI_sphere_'+str(radius)+'mm.nii'))
+
+def combine_masks(dir_template, subj_list, out_dir, out_name, mask_template = False):
+    '''
+    Combine multiple ROI masks into a single atlas.
+    ROIs should each have separate ID values before being entered
+    TODO - allow all masks to be binary, then label in script, and output a legend.
+
+    dir_template [string]:
+        file path that will grab all relevant files with a glob. subject IDs will be used to find files for each subject.
+    subj_list [list of strings]:
+        these will be iterated through to identify each subject. If we are combining data for just one subject (or all subjects) then the entry will just need to be present in all filenames.
+    out_dir [string]:
+        path to output directory. Directory will be made if it does not already exist.
+    out_name [string]:
+        Unique identifier for output file.
+    mask_template [string; default=FALSE]:
+        file path to grab a subject specific mask, a binary file that will be multipled into the final atlas. Initially used to multiply in significance threshold into a functional localizer.
+    '''
+    import nibabel as nib
+    import numpy as np
+
+    def get_files(subj_id, template):
+        import glob
+        out_list = []
+        for x in glob.glob(template):
+            if subj_id in x:
+                out_list.append(x)
+        return out_list
+
+    for subj in subj_list:
+        try:
+            subj_files = get_files(subj, dir_template)
+        except:
+            print('could not find files for %s' % subj)
+            continue
+        for file in subj_files:
+            if file == subj_files[0]:
+                base_file = nib.load(file)
+                base_data = base_file.get_data()
+            else:
+                base_data = base_data + nib.load(file).get_data()
+        if mask_template:
+            mask_file = get_files(subj, mask_template)
+            if len(mask_file) != 1:
+                print('No mask found for %s, SKIPPING' % subj)
+                continue
+            mask_data = nib.load(mask_file[0]).get_data()
+            base_data = base_data * mask_data
+        out_file = nib.Nifti1Image(base_data, base_file.affine, base_file.header)
+        out_file.header['cal_max'] = np.max(base_data) # fix header info
+        out_file.header['cal_min'] = 0 # fix header info
+        try:
+            nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'.nii'))
+        except:
+            os.makedirs(out_dir)
+            nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'.nii'))
+
+    # save final image.
