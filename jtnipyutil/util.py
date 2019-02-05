@@ -396,3 +396,51 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
         out_cdata[out_cdata.isna()] = 0
         out_confname = cfile.split('/')[-1].partition('run-')[0] + cfile.split('/')[-1].partition('run-')[-1][3:]
         out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
+
+def sphere_roi_from_list(template_file, subj_list, coord_list, radius, out_dir, out_name, roi_value=1):
+    '''
+    Given a set of subjects and coordinates, iterate through all entries and generate ROI spheres around the coordinates.
+    Value of ROI can be customized so that entries can later be combined into a single atlas.
+
+    template_file [string]:
+        path to 3-dimensional coordinate space file. Used to generate image in the correct voxel space.
+        e.g. ~/Desktop/data/TRAG/TRAG/ROIs/ToMN/images/mni_icbm152_t1_tal_nlin_sym_09c.nii
+    subj_list [list of strings]:
+        Each entry should uniquely identify a subject (e.g. ['sub-03', 'sub-04'])
+    coord_list [list of lists of integers]:
+        e.g. [[45, 74, 51], [96, 72, 103]]
+    radius [integer]:
+        radius of sphere
+    wrk_dir [string]:
+        path to output directory
+    out_name [string]
+        identifier for output file, e.g. 'RTPJ'
+    roi_value [integer]:
+        value to use inside sphere. Default=1
+        Can be useful to change this, if you plan on combining ROIs later.
+    '''
+    import nibabel as nib
+    import numpy as np
+    import os
+    from scipy.ndimage.morphology import binary_dilation
+    from skimage.morphology import ball
+
+    template_img = nib.load(template_file)
+    data = template_img.get_data()
+    for idx, subj in enumerate(subj_list):
+        subj_coords = coord_list[idx]
+        if np.isnan(subj_coords).any(): # if any nan found, then skip this subject.
+            print(('invalid coordinates for subject %s') % subj)
+            continue
+        data[:] = 0
+        data[int(coord_list[idx][0]), int(coord_list[idx][1]), int(coord_list[idx][2])] = 1
+        data = binary_dilation(data, ball(radius)).astype(data.dtype)
+        data = data*roi_value
+        out_file = nib.Nifti1Image(data, template_img.affine, template_img.header)
+        out_file.header['cal_max'] = roi_value # fix header info
+        out_file.header['cal_min'] = 0 # fix header info
+        try:
+            nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'ROI_sphere_'+str(radius)+'mm.nii'))
+        except:
+            os.makedirs(out_dir)
+            nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'ROI_sphere_'+str(radius)+'mm.nii'))
