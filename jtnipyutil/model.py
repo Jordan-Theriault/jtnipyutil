@@ -524,9 +524,15 @@ def create_lvl1pipe_wf(options):
             quadtderiv = np.square(tderiv)
             confounds = confounds.join(quadtderiv, rsuffix='_quadtderiv')
         if options['remove_steadystateoutlier']:
-            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]])
+            if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]])
+            elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]]) # old syntax
         if options['ICA_AROMA']:
-            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]])
+            if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]])
+            elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]]) # old syntax
         if len(df_cf.columns[df_cf.columns.to_series().str.contains('run_')]) > 0: # get runs if there are any, assuming combine_runs was used.
             confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('run_')]])
         return confounds
