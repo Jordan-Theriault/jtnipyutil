@@ -321,15 +321,8 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
             file_list = list(get_filelist(subj, bold_template)[i] for i in runs)
         else:
             file_list = get_filelist(subj, bold_template)
-        for file in file_list:
-            if file == file_list[0]:
-                ref = nib.load(file) # get header info if first file.
-                out_data = nib.load(file).get_data()
-            else:
-                run_data = nib.load(file).get_data()
-                out_data = np.append(out_data, run_data, axis=3)
-        out_boldname = file.split('/')[-1].partition('run-')[0] + file.split('/')[-1].partition('run-')[-1][3:]
-        out_file = nib.Nifti1Image(out_data, ref.affine, ref.header)
+        out_file = nib.funcs.concat_images(file_list, axis=3)
+        out_boldname = file_list[0].split('/')[-1].partition('run-')[0] + file_list[0].split('/')[-1].partition('run-')[-1][3:]
         try:
             nib.save(out_file, os.path.join(out_folder, out_boldname))
         except:
@@ -501,4 +494,88 @@ def combine_masks(dir_template, subj_list, out_dir, out_name, mask_template = Fa
             os.makedirs(out_dir)
             nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'.nii'))
 
-    # save final image.
+def extract_rois_from_atlas(subj_list, data_template, atlas_template, out_dir, num_rois=False, subj_specific_atlas=False, headers=False):
+    '''
+    Grab all unique values (except 0) from a 3d Nifti atlas, then extract the average of all voxels in that ROI from another timeseries.
+
+    subj_list [list of strings]
+        e.g. ['sub-03', 'sub-04']
+    data_template [string]
+        Can include wildcards to use with glob. Can reference all subject files, thne the subject ID will be used to narrow the glob search.
+    atlas_template [string]
+        Can include wildcards (e.g. if each subject has their own unique atlas)
+        If subj_specific_atlas is true, then subject Id will be used to narrow a glob search.
+    out_dir [string]
+        output directory
+    num_rois [default=False; integer]
+        number of unique values in the atlas. Used when subject specific atlases may or may not contain all ROIs. If not entered, the number of rois will be inferred by np.unique(). In either case, it is assumed that rois are represented by sequential integers.
+    subject_specific_atlas [default=False; boolean]
+        used if each subject has a unique atlas (i.e. subject-specific ROI). In this case, atlas_template will likely need a wildcard.
+    headers [default=False; list of strings]
+        Names of ROIs in target atlas. Will name columns in output.
+        e.g. ['PC_ToMN', 'RTPJ_ToMN', 'LTPJ_ToMN']
+    '''
+    def get_files(subj_id, template):
+        import glob
+        out_list = []
+        for x in glob.glob(template):
+            if subj_id in x:
+                out_list.append(x)
+        return out_list
+
+    import nibabel as nib
+    import numpy as np
+    import pandas as pd
+    import os
+
+    for subj in subj_list:
+    ## Get atlas
+        if subj_specific_atlas:
+            atlas_path = get_files(subj, atlas_template)
+            assert atlas_path, 'atlas path returned no images'
+            assert len(atlas_path) == 1, 'atlas path must return one image.'
+            atlas_path = atlas_path[0]
+        else:
+            atlas_path = atlas_template
+        atlas_data = nib.load(atlas_path).get_fdata()
+        atlas_name = atlas_path.split('/')[-1].split('.')[0]
+        assert len(atlas_data.shape)==3, 'atlas file must be a 3d file.'
+        if headers:
+            assert isinstance(headers, list), 'headers must be a list'
+            if num_rois:
+                len(headers)==num_rois
+            else:
+                assert len(headers)==len(np.unique(atlas_data))-1, 'headers must have a value for every unique roi'
+            out_header = pd.DataFrame(columns=headers)
+        else:
+            out_header = pd.DataFrame(columns=['r'+str(val) for val in list(range(1,len(np.unique(atlas_data))))])
+
+    ## Get subject data.
+        subj_files = get_files(subj, data_template)
+        assert len(subj_files) > 0, 'no files found for subject'
+        for file in subj_files:
+            print(('grabbing %s for subject %s') % (file, subj))
+            subj_data = nib.load(file).get_fdata()
+            assert atlas_data.shape == subj_data.shape[0:3], 'bold files and atlas file must be same dimensions'
+            atlas_data = np.rint(np.ndarray.flatten(atlas_data))
+            print('atlas flattened')
+            subj_data = subj_data.reshape(np.prod(subj_data.shape[0:3]), subj_data.shape[-1]) # flatten to voxelxTR
+            print('data reshaped')
+            if num_rois:
+                roi_max = num_rois
+            else:
+                roi_max = len(np.unique(atlas_data))-1 # -1 is because we don't want to count zero (empty data)
+            temp_out = np.empty((subj_data.shape[-1], num_rois), dtype=np.float64)
+            for idx, roi in enumerate(list(range(1,roi_max+1))):
+                if atlas_data[np.where(atlas_data==roi)].size == 0: # skip if not data for ROI.
+                    continue
+                temp_out[:, idx] = np.mean(subj_data[np.where(atlas_data==roi)],0)
+                print('averaged roi: %s' % roi)
+            out_data = out_header.append(pd.DataFrame(temp_out, columns=list(out_header.columns.values)),
+                                       ignore_index=True)
+            try:
+                out_data.to_csv(os.path.join(out_dir, subj+'_atlas-'+atlas_name+'.tsv'), sep='\t', index=False)
+            except:
+                os.makedirs(os.path.join(out_dir))
+                out_data.to_csv(os.path.join(out_dir, subj+'_atlas-'+atlas_name+'.tsv'), sep='\t', index=False)
+            print('done with file: \n %s.\n Input shape = %s\n Output shape = %s\n' % (file, subj_data.shape, out_data.shape))
