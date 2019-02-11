@@ -1,6 +1,14 @@
-from jt_modeling import create_lvl1pipe_wf
+import os, sys
+from jtnipyutil.model import create_lvl1pipe_wf
+# from jtnipyutil.util import combine_runs
 import nipype.pipeline.engine as pe # pypeline engine
 from nipype import IdentityInterface
+import numpy as np
+import pandas as pd
+import os
+import nibabel as nib
+
+
 ########## SINKER INFO ########################################
 # These will clean up the output. You may need to run the pipeline once to know what to put here.
 # But if you run-reun the pipeline, old steps are pulled from the cache, so it should rerun quickly.
@@ -26,45 +34,53 @@ sinker_subs = []
 ########## CREATE MODEL AND SET INPUTSPEC ########################################
 options = {'remove_steadystateoutlier': True,
            'smooth': True,
-           'censoring': '',
-           'ICA_AROMA': True
-           'run_contrasts': False}
+           'censoring': 'despike',
+           'ICA_AROMA': False,
+          'run_contrasts': False,
+          'keep_resid': True}
 
 model_wf = create_lvl1pipe_wf(options)
-model_wf.inputs.inputspec.input_dir = "/home/neuro/data/"
-model_wf.inputs.inputspec.output_dir = '/home/neuro/output'
+model_wf.inputs.inputspec.input_dir = "/scratch/data/"
+model_wf.inputs.inputspec.output_dir = '/scratch/output'
 model_wf.inputs.inputspec.design_col = 'trial_type'
-model_wf.inputs.inputspec.noise_regressors = []
-model_wf.inputs.inputspec.noise_transforms = []
-model_wf.inputs.inputspec.TR = 2.34  # In seconds, ensure this is a float
+model_wf.inputs.inputspec.noise_regressors = ['csf', 'white_matter', 'trans_x*', 'trans_y*', 'trans_z*', 'rot_x*', 'rot_y*', 'rot_z*']
+model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+model_wf.inputs.inputspec.TR = 2.  # In seconds, ensure this is a float
 model_wf.inputs.inputspec.FILM_threshold = 1 # Threshold for FILMGLS.  1000: p<=.001, 1: p <=1, i.e. unthresholded.
-model_wf.inputs.inputspec.hpf_cutoff = 120.
+model_wf.inputs.inputspec.hpf_cutoff = 128.
 model_wf.inputs.inputspec.params = [] # parameter to model from task file.
 model_wf.inputs.inputspec.contrasts = []
 model_wf.inputs.inputspec.bases = {'dgamma':{'derivs': False}} # For more options, see Level1Design at https://nipype.readthedocs.io/en/latest/interfaces/generated/interfaces.fsl/model.html
-model_wf.inputs.inputspec.model_serial_correlations = False # No Pre-whitening
-model_wf.inputs.inputspec.sinker_subs = sinker_subs
-model_wf.inputs.inputspec.bold_template = {'bold': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'}
-model_wf.inputs.inputspec.mask_template = {'mask': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_brainmask.nii.gz'}
-model_wf.inputs.inputspec.task_template = {'task': '/home/neuro/data/sub-*/func/sub-*_task-stress_events.tsv'}
-model_wf.inputs.inputspec.confound_template = {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
-model_wf.inputs.inputspec.smooth_gm_mask_template = {'gm_mask': '/home/neuro/data/sub-*/anat/sub-*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz'}
+model_wf.inputs.inputspec.model_serial_correlations = True # Include Pre-whitening, deals with autocorrelation
+model_wf.inputs.inputspec.sinker_subs = sinker_subs #TODO - run one and check this.
+model_wf.inputs.inputspec.bold_template = {'bold': '/scratch/data/sub-*/func/sub-*_task-trag_run-*_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz'}
+model_wf.inputs.inputspec.mask_template = {'mask': '/scratch/data/sub-*/func/sub-*_task-trag_run-*_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz'}
+model_wf.inputs.inputspec.task_template = {'task': '/scratch/data/sub-*/func/sub-*_task-trag_run-*_events.tsv'}
+model_wf.inputs.inputspec.confound_template = {'confound': '/scratch/data/sub-*/func/sub-*_task-trag_run-*_desc-confounds_regressors.tsv'}
+model_wf.inputs.inputspec.smooth_gm_mask_template = {'gm_mask': '/scratch/data/sub-*/anat/sub-*_space-MNI152NLin2009cAsym_label-GM_probseg.nii.gz'}
 model_wf.inputs.inputspec.gmmask_args =  '-thr .5 -bin -kernel gauss 1 -dilM' # FSL Math command to adjust grey matter for susan smoothing mask.
-model_wf.inputs.inputspec.proj_name = 'FSMAP_resting_state'
+model_wf.inputs.inputspec.proj_name = 'timecourse'
 
 # model_wf.inputspec.subject_id = # Could use 'sub-001', or use iterables below.
 # model_wf.inputspec.fwhm = # could use 1.5, or use iterables below.
+subject_list = [sys.argv[1]+'_task-trag_run-01',
+                sys.argv[1]+'_task-trag_run-02',
+                sys.argv[1]+'_task-trag_run-03',
+                sys.argv[1]+'_task-trag_run-04',
+                sys.argv[1]+'_task-trag_run-05',
+                sys.argv[1]+'_task-trag_run-06'] # each subject ID, combined with the template, should specify ONE file.
+fwhm_list = [5.] # Smoothing parameters. If options['smooth'] is false, then leave empty and remove fwhm_list from iterables below.
 
-subject_list = ['sub-001', 'sub-002'] # each subject ID, combined with the template, should specify ONE file.
-fwhm_list = [1.5., 6] # Smoothing parameters. If options['smooth'] is false, then leave empty and remove fwhm_list from iterables below.
+########## ALTERNATIVE REGRESSOR EXAMPLE: ICA AROMA ########################################
 
-########## ALTERNATIVE REGRESSOR EXAMPLE: 36P with despiking ########################################
-### 36P + despiking
 # options = {'remove_steadystateoutlier': True,
-#           'censoring': 'despike',
-#           'ICA_AROMA': False}
-# noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*'] # from fmriprep bold_confounds header.
-# noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+#            'smooth': True,
+#            'censoring': '',
+#            'ICA_AROMA': True,
+#           'run_contrasts': False,
+#           'keep_resid': True}
+# noise_regressors = [] # from fmriprep bold_confounds header.
+# noise_transforms = []
 
 ########## SETUP ITERABLES ########################################
 
@@ -80,8 +96,8 @@ full_model_wf.connect([
                             ('subject_id', 'inputspec.subject_id')])])
 # full_model_wf.connect([
 #     (infosource, model_wf, [('subject_id', 'inputspec.subject_id')])]) # If no smoothing.
-full_model_wf.base_dir = '/home/neuro/workdir'
-full_model_wf.crash_dump = '/home/neuro/workdir/crashdump'
+full_model_wf.base_dir = '/scratch/wrkdir/timecourse'
+full_model_wf.crash_dump = '/scratch/wrkdir/crashdump'
 
 ########## Visualize ##################################################
 # full_model_wf.write_graph('simple.dot')
@@ -90,5 +106,4 @@ full_model_wf.crash_dump = '/home/neuro/workdir/crashdump'
 # Image(filename= os.path.join(full_model_wf.base_dir, 'full_model_wf','simple.png'))
 
 ########## RUN ##################################################
-# full_model_wf.run(plugin='MultiProc')
-full_model_wf.run()
+full_model_wf.run(plugin='MultiProc')
