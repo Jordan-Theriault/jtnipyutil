@@ -203,41 +203,41 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
             os.makedirs(os.path.join(work_dir, 'pag_mask'))
             nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
 
-def PAG_DARTEL(subj_list, PAG_template, work_dir,
+def create_DARTEL_wf(subj_list, file_template, work_dir,
                it_params=[(3, (4, 2, 1e-06), 1, 16),
                           (3, (2, 1, 1e-06), 1, 8),
                           (3, (1, 0.5, 1e-06), 2, 4),
                           (3, (0.5, 0.25, 1e-06), 4, 2),
                           (3, (0.25, 0.125, 1e-06), 16, 1),
-                          (3, (0.125, 0.0625, 1e-06), 32, 0.5)],
-               opt_params=(0.01, 3, 3),
-               reg_form='Linear', b_spline=4, warp_iter=6, fwhm=[0,0,0]):
+                          # (3, (0.125, 0.0625, 1e-06), 32, 0.5)
+                          ], # TODO consider removing step 6.
+               opt_params=(0.01, 3, 3), reg_form='Linear',
+               b_spline=4, warp_iter=6):
     '''
-    Aligns all PAG images to a template (average of all images), then warps images into MNI space (using an SPM tissue probability map, see https://www.fil.ion.ucl.ac.uk/spm/doc/manual.pdf, section 25.4).
+    Aligns all images to a template (average of all images), then warps images into MNI space (using an SPM tissue probability map, see https://www.fil.ion.ucl.ac.uk/spm/doc/manual.pdf, section 25.4).
 
     subj_list: list of subject IDs
         e.g. [sub-001, sub-002]
 
-    PAG_template: string to identify all PAG files (using glob).
-        e.g. PAG_template = TODO
+    file_template: string to identify all files to align (using glob).
+        e.g. file_template = os.path.join(work_dir, 'pag_mask', '*_pag_mask.nii')
             The template can identify a larger set of files, and the subject_list will grab a subset.
                 e.g. The template may grab sub-001, sub-002, sub-003 ...
                 But if the subject_list only includes sub-001, then only sub-001 will be used.
                 This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
-    it_params:
-        List 3 to 12 tuples for each iteration
+    it_params: DARTEL iteration parameters
+        List of tuples for each iteration
          - Inner iterations: 1 <= a long integer <= 10
          - Regularization parameters: a tuple of the form: (a float, a float, a float)
          - Time points for deformation model: 1, 2, 4, 8, 16, 32, 64, 128, 256, or 512
          - smoothing parameter: 0, 0.5, 1, 2, 4, 8, 16, 32
-            DARTEL iteration parameters
 
-    opt_params: (a tuple of the form:
+    opt_params: DARTEL optimization parameters
+            a tuple of the form:
              - LM regularization: a float
              - cycles of multigrid solver: 1 <= a long integer <= 8
              - relaxation iterations: 1 <= a long integer <= 8
-         DARTEL optimization parameters
 
     reg_form: ('Linear' or 'Membrane' or 'Bending')
         DARTEL: Form of regularization energy term
@@ -257,20 +257,36 @@ def PAG_DARTEL(subj_list, PAG_template, work_dir,
     sinker = pe.Node(DataSink(parameterization=True), name='sinker')
 
     # get images
-    PAG_images = files_from_template(subj_list, PAG_template)
+    images = files_from_template(subj_list, file_template)
 
     # set up DARTEL.
-    DARTEL = pe.Node(interface=DARTEL(), name='DARTEL')
-    DARTEL.inputs.image_files = [PAG_images]
-    DARTEL.inputs.iteration_parameters = it_params
-    DARTEL.inputs.optimization_parameters = opt_params
-    DARTEL.inputs.regularization_form = reg_form
+    dartel = pe.Node(interface=DARTEL(), name='dartel')
+    dartel.inputs.image_files = [images]
+    dartel.inputs.iteration_parameters = it_params
+    dartel.inputs.optimization_parameters = opt_params
+    dartel.inputs.regularization_form = reg_form
+
+    dartel2mni = pe.Node(interface=DARTELNorm2MNI(), name='dartel2mni') # realign and reslice to MNI before applying transforms.
+    # # dartel2mni.inputs.template_file = # From dartel
+    # # dartel2mni.inputs.flowfield_files = # From dartel
+    dartel2mni.inputs.apply_to_files = images
+
+    dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
+    # # dartel_warp.inputs.image_files = # From dartel2mni
+    # # dartel_warp.inputs.flowfield_files = # From dartel
+    dartel_warp.inputs.iterations = warp_iter
+    dartel_warp.inputs.interp = b_spline
 
     DARTEL_wf.connect([
-        (DARTEL, sinker, [('dartel_flow_fields', 'flow'),
+        (dartel, dartel2mni, [('final_template_file', 'template_file'),
+                              ('dartel_flow_fields', 'flowfield_files')]),
+        (dartel2mni, dartel_warp, [('normalized_files', 'image_files')]),
+        (dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]),
+        (dartel, sinker, [('dartel_flow_fields', 'flow'),
                           ('final_template_file', 'template'),
-                          ('template_files', 'template.@prelim')])
+                          ('template_files', 'template.@prelim')]),
+        (dartel2mni, sinker, [('normalized_files', 'mni'),
+                              ('normalization_parameter_file', 'mni@param')]),
+        (dartel_warp, sinker, [('warped_files', 'warp_output')]),
     ])
-    DARTEL_wf.run()
-
-    ## TODO - warp beta images also.
+    return DARTEL_wf
