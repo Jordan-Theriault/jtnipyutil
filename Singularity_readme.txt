@@ -1,3 +1,5 @@
+** THIS NO LONGER WORKS. WAITING FOR A BUG FIX. SEE https://github.com/docker/hub-feedback/issues/727
+
 To create a singularity image, ensure that under Docker Daemon commands, the following is entered:
 {
   "debug" : true,
