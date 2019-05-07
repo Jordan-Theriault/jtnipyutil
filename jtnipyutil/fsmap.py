@@ -290,3 +290,37 @@ def create_DARTEL_wf(subj_list, file_template, work_dir,
         (dartel_warp, sinker, [('warped_files', 'warp_output')]),
     ])
     return DARTEL_wf
+
+def get_cortical_thickness(subj, data_dir, work_dir):
+    import nighres
+    import nibabel as nib
+    import numpy as np
+
+    # Load tissue classification, transform into binary mask of white matter.
+    segfile = nib.load(data_dir+'/'+subj+'/anat/'+subj+'_T1w_dtissue.nii.gz')
+    segdata = segfile.get_data()
+    segdata[segdata!=3] = 0
+    segdata[segdata==3] = 1
+    segout = nib.Nifti1Image(segdata, affine = segfile.affine, header = segfile.header)
+    nib.save(segout, work_dir+'/'+subj+'_T1w_dWM.nii.gz')
+
+
+    # Use cruise to generate levelsets for volumetric_layering.
+    cruise_sub = nighres.cortex.cruise_cortex_extraction(
+        init_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_dWM.nii.gz', # binary wm mask
+        wm_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-WM_probtissue.nii.gz', # probability wm mask
+        gm_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-GM_probtissue.nii.gz', # probability gm mask
+        csf_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-CSF_probtissue.nii.gz', # probability csf mask
+        normalize_probabilities=True,
+        save_data=True,
+        file_name=''+subj+'_cruise',
+        output_dir=work_dir)
+
+    # use volumetric labeling to create cortical depth layering.
+    cruise_sub = nighres.laminar.volumetric_layering(
+        inner_levelset=cruise_sub['gwb'],
+        outer_levelset=cruise_sub['cgb'],
+        n_layers=10,
+        save_data=True,
+        file_name=subj+'_depth',
+        output_dir=work_dir)
