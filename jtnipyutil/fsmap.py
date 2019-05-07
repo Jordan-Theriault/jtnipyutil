@@ -304,13 +304,12 @@ def get_cortical_thickness(subj, data_dir, work_dir):
     segout = nib.Nifti1Image(segdata, affine = segfile.affine, header = segfile.header)
     nib.save(segout, work_dir+'/'+subj+'_T1w_dWM.nii.gz')
 
-
     # Use cruise to generate levelsets for volumetric_layering.
     cruise_sub = nighres.cortex.cruise_cortex_extraction(
-        init_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_dWM.nii.gz', # binary wm mask
-        wm_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-WM_probtissue.nii.gz', # probability wm mask
-        gm_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-GM_probtissue.nii.gz', # probability gm mask
-        csf_image=data_dir+'/'+subj'/anat/'+subj+'_T1w_class-CSF_probtissue.nii.gz', # probability csf mask
+        init_image=work_dir+'/'+subj+'_T1w_dWM.nii.gz', # binary wm mask
+        wm_image=data_dir+'/'+subj+'/anat/'+subj+'_T1w_class-WM_probtissue.nii.gz', # probability wm mask
+        gm_image=data_dir+'/'+subj+'/anat/'+subj+'_T1w_class-GM_probtissue.nii.gz', # probability gm mask
+        csf_image=data_dir+'/'+subj+'/anat/'+subj+'_T1w_class-CSF_probtissue.nii.gz', # probability csf mask
         normalize_probabilities=True,
         save_data=True,
         file_name=''+subj+'_cruise',
