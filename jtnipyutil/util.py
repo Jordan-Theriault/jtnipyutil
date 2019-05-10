@@ -1,3 +1,28 @@
+def convert_affine(native_img, ref_img, work_dir):
+    '''
+    Transforms image from native space to a reference space, using nibabel.apply_affine.
+
+    Input [Mandatory]:
+    native_img: string, giving file path to image in native space.
+    ref_img: string, giving file path to image in reference space.
+    work_dir: string, representing directory to save output to.
+
+    Output:
+        trans_img: native image in tranformed space.
+    '''
+    import nibabel as nb
+    import nilearn as nl
+    import numpy as np
+    import os
+
+    native = nib.load(native_img)
+    ref = nib.load(ref_img)
+    out_img = nl.image.resample_img(native, target_affine=ref.affine, target_shape=ref.shape)
+    out_data = out_img.get_data()
+    out_data[out_data<1] = 0
+    out_img = nib.Nifti1Image(data, out_img.affine, out_img.header)
+    nib.save(out_img, os.path.join(work_dir, 'ALIGN_'+native_img.split('/')[-1]))
+    return os.path.join(work_dir, 'ALIGN_'+native_img.split('/')[-1])
 
 def align_mask(mask_file, native_brain, ref_brain, work_dir):
     '''
