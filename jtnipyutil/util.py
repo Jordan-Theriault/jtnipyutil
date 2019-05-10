@@ -34,6 +34,7 @@ def align_mask(mask_file, native_brain, ref_brain, work_dir):
     fit_mask.inputs.apply_xfm = True
     fit_mask.inputs.out_file = os.path.join('/'.join(mask_file.split('/')[0:-1]), 'ALIGN_'+mask_file.split('/')[-1])
     fit_mask.run()
+    return fit_mask.inputs.out_file
 
 
 def create_grandmean_img_wf():
@@ -151,10 +152,10 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
         out_mask = nib.Nifti1Image(data, ref.affine, mask.header)
         out_mask.header['dim'] = ref.header['dim']
         out_mask.header['pixdim'] = ref.header['pixdim']
-        nib.save(out_mask, os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz'))
         out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
         out_mask.header['cal_min'] = np.min(data)
         out_mask = os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz')
+        nib.save(out_mask, os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz'))
     else:
         assert (out_format == 'array'), 'out_format is neither file, or array.'
         out_mask = data
@@ -185,8 +186,10 @@ def mask_img(img_file, mask_file, work_dir = '', out_format = 'file', inclu_excl
     img = nib.load(img_file) # grab data
     data = nib.load(img_file).get_data() # grab data
     if mask.shape != data.shape[0:3]:
-        interp_dims = np.array(data.shape[0:3])/np.array(mask.shape)
-        mask = resize(mask.get_data(), interp_dims.tolist(), order = spline, preserve_range=True) # interpolate mask to native space.
+        new_shape = list(data.shape[0:3])
+        while len(new_shape) != len(mask.shape): # add extra dimensions, in case ref img is 4d.
+            new_shape.append(1)
+        mask = resize(mask.get_data(), new_shape, order = spline, preserve_range=True) # interpolate mask to native space.
     else:
         mask = mask.get_data()
     if inclu_exclu == 'inclusive':
