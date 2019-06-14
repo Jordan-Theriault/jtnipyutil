@@ -9,7 +9,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
             e.g. [95, 97.5, 99.9]
 
         template: string to identify all PAG aqueduct files (using glob).
-            e.g. preproc_func_template = '/home/neuro/func/sub-*_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz'
+            e.g. template = '/home/neuro/func/sub-001/sigmasquareds.nii.gz'
                 The template can identify a larger set f files, and the subject_list will grab a subset.
                     e.g. The template may grab sub-001, sub-002, sub-003 ...
                     But if the subject_list only includes sub-001, then only sub-001 will be used.
@@ -19,8 +19,14 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
 
         space_mask: string, denoting path to PAG search region mask.
     Output:
-
-    TODO
+        /subj_cluster/sub-xxx_sigmasquare_clusts.nii.gz
+            folder within work_dir, listing nii.gz images with all clusters t the specified p thresholds and cluster extents (default = 50 only)
+        /templates/sub-xxx_aqueduct_template.nii.gz
+            all subject aqueduct templates output as nii.gz files
+        /templates/MEAN_aqueduct_template.nii.gz
+            average of all aqueduct templates, which was used to help converge on the correct cluster.
+        /templates/report.csv
+            report on output, listing subject, threshold used, cluster, corelation with the average, and how many iterations it took to settle on an answer. Results where corr < .3 are flagged.
     '''
     import nibabel as nib
     import numpy as np
@@ -203,16 +209,7 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
             os.makedirs(os.path.join(work_dir, 'pag_mask'))
             nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
 
-def create_DARTEL_wf(subj_list, file_template, work_dir,
-               it_params=[(3, (4, 2, 1e-06), 1, 16),
-                          (3, (2, 1, 1e-06), 1, 8),
-                          (3, (1, 0.5, 1e-06), 2, 4),
-                          (3, (0.5, 0.25, 1e-06), 4, 2),
-                          (3, (0.25, 0.125, 1e-06), 16, 1),
-                          # (3, (0.125, 0.0625, 1e-06), 32, 0.5)
-                          ], # TODO consider removing step 6.
-               opt_params=(0.01, 3, 3), reg_form='Linear',
-               b_spline=4, warp_iter=6):
+def create_DARTEL_wf(subj_list, file_template, work_dir):
     '''
     Aligns all images to a template (average of all images), then warps images into MNI space (using an SPM tissue probability map, see https://www.fil.ion.ucl.ac.uk/spm/doc/manual.pdf, section 25.4).
 
@@ -241,6 +238,11 @@ def create_DARTEL_wf(subj_list, file_template, work_dir,
 
     reg_form: ('Linear' or 'Membrane' or 'Bending')
         DARTEL: Form of regularization energy term
+
+    b_spline: Degree of b-spline used for interpolation in nipype.iterfaces.spm.CreateWarped.
+        e.g. b_spline = 4
+
+    warp_iter
     '''
     import nibabel as nib
     import numpy as np
@@ -262,26 +264,26 @@ def create_DARTEL_wf(subj_list, file_template, work_dir,
     # set up DARTEL.
     dartel = pe.Node(interface=DARTEL(), name='dartel')
     dartel.inputs.image_files = [images]
-    dartel.inputs.iteration_parameters = it_params
-    dartel.inputs.optimization_parameters = opt_params
-    dartel.inputs.regularization_form = reg_form
+    # dartel.inputs.iteration_parameters = it_params
+    # dartel.inputs.optimization_parameters = opt_params
+    # dartel.inputs.regularization_form = reg_form
 
     dartel2mni = pe.Node(interface=DARTELNorm2MNI(), name='dartel2mni') # realign and reslice to MNI before applying transforms.
     # # dartel2mni.inputs.template_file = # From dartel
     # # dartel2mni.inputs.flowfield_files = # From dartel
-    dartel2mni.inputs.apply_to_files = images
 
     dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
     # # dartel_warp.inputs.image_files = # From dartel2mni
     # # dartel_warp.inputs.flowfield_files = # From dartel
-    dartel_warp.inputs.iterations = warp_iter
-    dartel_warp.inputs.interp = b_spline
+    dartel_warp.inputs.image_files = images
+    # dartel_warp.inputs.iterations = warp_iter
+    # dartel_warp.inputs.interp = b_spline
 
     DARTEL_wf.connect([
         (dartel, dartel2mni, [('final_template_file', 'template_file'),
                               ('dartel_flow_fields', 'flowfield_files')]),
-        (dartel2mni, dartel_warp, [('normalized_files', 'image_files')]),
-        (dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]),
+        (dartel_warp, dartel2mni, [('warped_files', 'apply_to_files')]),
+        (dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]), # THIS IS WRONG, figure it out.
         (dartel, sinker, [('dartel_flow_fields', 'flow'),
                           ('final_template_file', 'template'),
                           ('template_files', 'template.@prelim')]),
