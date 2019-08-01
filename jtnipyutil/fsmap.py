@@ -223,26 +223,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
                 But if the subject_list only includes sub-001, then only sub-001 will be used.
                 This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
-    it_params: DARTEL iteration parameters
-        List of tuples for each iteration
-         - Inner iterations: 1 <= a long integer <= 10
-         - Regularization parameters: a tuple of the form: (a float, a float, a float)
-         - Time points for deformation model: 1, 2, 4, 8, 16, 32, 64, 128, 256, or 512
-         - smoothing parameter: 0, 0.5, 1, 2, 4, 8, 16, 32
-
-    opt_params: DARTEL optimization parameters
-            a tuple of the form:
-             - LM regularization: a float
-             - cycles of multigrid solver: 1 <= a long integer <= 8
-             - relaxation iterations: 1 <= a long integer <= 8
-
-    reg_form: ('Linear' or 'Membrane' or 'Bending')
-        DARTEL: Form of regularization energy term
-
-    b_spline: Degree of b-spline used for interpolation in nipype.iterfaces.spm.CreateWarped.
-        e.g. b_spline = 4
-
-    warp_iter
+    work_dir: string, denoting path to working directory.
     '''
     import nibabel as nib
     import numpy as np
@@ -256,7 +237,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     DARTEL_wf.base_dir = work_dir
 
     # set up sinker
-    sinker = pe.Node(DataSink(parameterization=True), name='sinker')
+    # sinker = pe.Node(DataSink(parameterization=True), name='sinker')
 
     # get images
     images = files_from_template(subj_list, file_template)
@@ -264,34 +245,92 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     # set up DARTEL.
     dartel = pe.Node(interface=DARTEL(), name='dartel')
     dartel.inputs.image_files = [images]
-    # dartel.inputs.iteration_parameters = it_params
-    # dartel.inputs.optimization_parameters = opt_params
-    # dartel.inputs.regularization_form = reg_form
 
-    dartel2mni = pe.Node(interface=DARTELNorm2MNI(), name='dartel2mni') # realign and reslice to MNI before applying transforms.
+    # dartel2mni = pe.Node(interface=DARTELNorm2MNI(), name='dartel2mni') # realign and reslice to MNI before applying transforms.
     # # dartel2mni.inputs.template_file = # From dartel
     # # dartel2mni.inputs.flowfield_files = # From dartel
 
-    dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
+    # dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
     # # dartel_warp.inputs.image_files = # From dartel2mni
     # # dartel_warp.inputs.flowfield_files = # From dartel
-    dartel_warp.inputs.image_files = images
-    # dartel_warp.inputs.iterations = warp_iter
-    # dartel_warp.inputs.interp = b_spline
+    # dartel_warp.inputs.image_files = images
 
-    DARTEL_wf.connect([
-        (dartel, dartel2mni, [('final_template_file', 'template_file'),
-                              ('dartel_flow_fields', 'flowfield_files')]),
-        (dartel_warp, dartel2mni, [('warped_files', 'apply_to_files')]),
-        (dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]), # THIS IS WRONG, figure it out.
-        (dartel, sinker, [('dartel_flow_fields', 'flow'),
-                          ('final_template_file', 'template'),
-                          ('template_files', 'template.@prelim')]),
-        (dartel2mni, sinker, [('normalized_files', 'mni'),
-                              ('normalization_parameter_file', 'mni@param')]),
-        (dartel_warp, sinker, [('warped_files', 'warp_output')]),
-    ])
+    DARTEL_wf.add_nodes([dartel])
     return DARTEL_wf
+
+def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
+    '''
+    subj_list: list of strings for each subject
+        e.g. ['sub-001', 'sub-002', 'sub-003']
+    data_template: string to identify all data files (using glob).
+            e.g. template = '/home/neuro/data/rest1_AROMA/nosmooth/sub-*/model/sub-*/_modelestimate0/res4d.nii.gz'
+                The template can identify a larger set of files, and the subject_list will grab a subset.
+                    e.g. The template may grab sub-001, sub-002, sub-003 ...
+                    But if the subject_list only includes sub-001, then only sub-001 will be used.
+                    This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
+    warp_template: string to identify all dartel flowfield files (using glob).
+        same as above.
+        Dartel flowfield files are made by create_DARTEL_wf,
+            also see jtnipyutil.fsmap.make_PAG_masks, and jtnipyutil.fsmap.create_aqueduct_template
+    workdir: string naming directory to store output and work.
+    '''
+    import os
+    import nibabel as nib
+    import numpy as np
+    import nipype.pipeline.engine as pe
+    from nipype import IdentityInterface
+    from nipype.interfaces.utility.wrappers import Function
+    from nipype.interfaces.spm.preprocess import CreateWarped
+    from jtnipyutil.util import files_from_template
+
+    # set up data warp workflow
+    apply_warp_wf = pe.Workflow(name='apply_warp_wf')
+    apply_warp_wf.base_dir = work_dir
+
+    # set up file lists
+    inputspec = pe.Node(IdentityInterface(
+        fields=['file_list',
+                'warp_list']),
+                       name='inputspec')
+    inputspec.inputs.file_list = files_from_template(subj_list, data_template)
+    inputspec.inputs.warp_list = files_from_template(subj_list, warp_template)
+
+    # rename files, as names are often indistinguishable (e.g. res4d.nii.gz)
+    def rename_list(in_list):
+        import nibabel as nib
+        import os
+        out_list = []
+        for file in in_list:
+            file_in = nib.load(file)
+            nib.save(file_in, os.path.join(os.getcwd(), '_'.join(file.split('/')[-3:])))
+            out_list.append(os.path.join(os.getcwd(), '_'.join(file.split('/')[-3:])))
+        return out_list
+
+    rename = pe.Node(Function(
+        input_names=['in_list'],
+        output_names=['out_list'],
+            function=rename_list),
+                    name='rename')
+
+    # dartel warping node.
+    warp_data = pe.Node(interface=CreateWarped(), name='warp_data')
+#     warp_data.inputs.image_files = # from inputspec OR gunzip
+#     warp_data.inputs.flowfield_files = # from inputspec
+
+    # check if unzipping is necessary.
+    if any('nii.gz' in file for file in files_from_template(subj_list, data_template)):
+        from nipype.algorithms.misc import Gunzip
+        gunzip = pe.MapNode(interface=Gunzip(), name='gunzip', iterfield=['in_file'])
+#         gunzip.in_file = # From inputspec
+        apply_warp_wf.connect([(inputspec, rename, [('file_list', 'in_list')]),
+                               (rename, gunzip, [('out_list', 'in_file')]),
+                               (gunzip, warp_data, [('out_file', 'image_files')]),
+                               (inputspec, warp_data, [('warp_list', 'flowfield_files')])])
+    else:
+        apply_warp_wf.connect([(inputspec, rename, [('file_list', 'in_list')]),
+                               (rename, warp_data, [('out_list', 'image_files')])
+                               (inputspec, warp_data, [('warp_list', 'flowfield_files')])])
+    return apply_warp_wf
 
 def get_cortical_thickness(subj, data_dir, work_dir, space=''):
     import nighres
