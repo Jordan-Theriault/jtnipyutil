@@ -236,24 +236,12 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     DARTEL_wf = pe.Workflow(name='DARTEL_wf')
     DARTEL_wf.base_dir = work_dir
 
-    # set up sinker
-    # sinker = pe.Node(DataSink(parameterization=True), name='sinker')
-
     # get images
     images = files_from_template(subj_list, file_template)
 
     # set up DARTEL.
     dartel = pe.Node(interface=DARTEL(), name='dartel')
     dartel.inputs.image_files = [images]
-
-    # dartel2mni = pe.Node(interface=DARTELNorm2MNI(), name='dartel2mni') # realign and reslice to MNI before applying transforms.
-    # # dartel2mni.inputs.template_file = # From dartel
-    # # dartel2mni.inputs.flowfield_files = # From dartel
-
-    # dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
-    # # dartel_warp.inputs.image_files = # From dartel2mni
-    # # dartel_warp.inputs.flowfield_files = # From dartel
-    # dartel_warp.inputs.image_files = images
 
     DARTEL_wf.add_nodes([dartel])
     return DARTEL_wf
