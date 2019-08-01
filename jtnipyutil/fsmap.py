@@ -271,6 +271,10 @@ def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
     from nipype.interfaces.spm.preprocess import CreateWarped
     from jtnipyutil.util import files_from_template
 
+    # create working directory if necessary.
+    if not os.path.isdir(work_dir):
+        os.makedirs(work_dir)
+
     # set up data warp workflow
     apply_warp_wf = pe.Workflow(name='apply_warp_wf')
     apply_warp_wf.base_dir = work_dir
