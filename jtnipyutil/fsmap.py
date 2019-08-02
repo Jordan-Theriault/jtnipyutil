@@ -35,6 +35,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     from jtnipyutil.util import files_from_template, clust_thresh, mask_img
 
     for subj in subj_list: # For each subjet, create aqueduct template file wtih all thresholded clusters.
+        print('creating aqueduct template for %s' % subj)
         try:
             img_file = nib.load(files_from_template(subj, os.path.join(work_dir, 'subj_clusts', '*_sigmasquare_clusts.nii.gz'))[0])
         except:
@@ -178,6 +179,7 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
     from jtnipyutil.util import files_from_template, clust_thresh, mask_img
 
     for subj in subj_list:
+        print('making PAG mask for subject: %s' % subj)
         # get aqueduct.
         img_file = nib.load(files_from_template(subj, data_template)[0])
         img = img_file.get_data()
@@ -227,7 +229,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     '''
     import nibabel as nib
     import numpy as np
-    from nipype.interfaces.spm.preprocess import DARTEL, DARTELNorm2MNI, CreateWarped
+    from nipype.interfaces.spm.preprocess import DARTEL, CreateWarped
     from nipype.interfaces.io import DataSink
     import nipype.pipeline.engine as pe
     import os
@@ -243,7 +245,12 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     dartel = pe.Node(interface=DARTEL(), name='dartel')
     dartel.inputs.image_files = [images]
 
-    DARTEL_wf.add_nodes([dartel])
+    dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
+    warp_data.inputs.image_files = [images]
+    #     warp_data.inputs.flowfield_files = # from inputspec
+
+    DARTEL_wf.connect([(dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')])])
+
     return DARTEL_wf
 
 def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
