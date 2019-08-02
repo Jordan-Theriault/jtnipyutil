@@ -116,7 +116,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
 
     for img_idx in range(0, new_template.shape[-1]):
         print(('Saving aqueduct for %s') % (subj_list[img_idx]))
-        subj_temp = nib.Nifti1Image(new_template[...,img_idx], img_info.affine, img_info.header)
+        subj_temp = nib.Nifti1Image(new_template[...,img_idx], img_file.affine, img_file.header)
         subj_temp.header['cal_max'] = 1 # fix header info
         subj_temp.header['cal_min'] = 0 # fix header info
         try:
@@ -126,7 +126,7 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
             nib.save(subj_temp, os.path.join(work_dir, 'templates', subj_list[img_idx]+'_aqueduct_template.nii.gz'))
 
     print('Saving aqueduct mean template.')
-    aq_temp_img = nib.Nifti1Image(aq_template, img_info.affine, img_info.header)
+    aq_temp_img = nib.Nifti1Image(aq_template, img_file.affine, img_file.header)
     aq_temp_img.header['cal_max'] = 1 # fix header info
     aq_temp_img.header['cal_min'] = 0 # fix header info
     nib.save(aq_temp_img, os.path.join(work_dir, 'templates', 'MEAN_aqueduct_template.nii.gz'))
