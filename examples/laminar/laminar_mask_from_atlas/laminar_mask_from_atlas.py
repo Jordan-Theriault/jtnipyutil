@@ -41,12 +41,14 @@ atlas_refit = nib.load(os.path.join(work_dir, 'ALIGN_'+atlas_file.split('/')[-1]
 
 ######## Get AROMA Confounds
 conf_raw = pd.read_csv(conf_file, sep='\t')
-conf_AROMA = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('^AROMAAggrComp')]]
+confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('^AROMAAggrComp')]]
+confound_list.loc[:,'WhiteMatter'] = conf_raw['WhiteMatter'].to_numpy()
+confound_list.loc[:,'CSF'] = conf_raw['CSF'].to_numpy()
 
 ######## Model whole-brain BOLD data using motion confounds.
 niftimask = NiftiMasker(dtype='float32', t_r=2.34)
 niftimask.fit(math_img('img > 0', img=depth_refit))
-img_masked = niftimask.transform(img_file, confounds=conf_AROMA.values)
+img_masked = niftimask.transform(img_file, confounds=confound_list.values)
 
 ######## Mask atlas by cortical depth.
 niftimask_atlas = NiftiMasker(dtype='float32')
