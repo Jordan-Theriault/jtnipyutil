@@ -1,0 +1,44 @@
+ssh launchpad
+
+cd /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/scripts
+
+chmod +x ./laminar_mask_roi.sh
+chmod +x ./startup_laminar_mask_roi.sh
+chmod +x ./laminar_mask_roi.py
+
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 001 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 002 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 003 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 004 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 005 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 006 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 007 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 008 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 009 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 010 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 011 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 012 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 013 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 018 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 019 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 020 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 021 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 022 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 023 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 024 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 025 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 026 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 031 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 032 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 033 ./laminar_mask_roi.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 034 ./laminar_mask_roi.sh &
+
+
+#DONE
+
+
+
+
+
+
+qsub -I -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00
