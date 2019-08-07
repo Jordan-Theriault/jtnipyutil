@@ -19,8 +19,8 @@ def convert_affine(native_img, ref_img, work_dir):
     ref = nib.load(ref_img)
     out_img = nl.image.resample_img(native, target_affine=ref.affine, target_shape=ref.shape)
     out_data = out_img.get_data()
-    out_data[out_data<1] = 0
-    out_img = nib.Nifti1Image(data, out_img.affine, out_img.header)
+    out_data = np.round(out_data, 5)
+    out_img = nib.Nifti1Image(out_data, out_img.affine, out_img.header)
     nib.save(out_img, os.path.join(work_dir, 'ALIGN_'+native_img.split('/')[-1]))
     return os.path.join(work_dir, 'ALIGN_'+native_img.split('/')[-1])
 
