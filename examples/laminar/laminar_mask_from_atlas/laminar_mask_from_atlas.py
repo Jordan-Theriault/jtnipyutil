@@ -41,9 +41,8 @@ atlas_refit = nib.load(os.path.join(work_dir, 'ALIGN_'+atlas_file.split('/')[-1]
 
 ######## Get AROMA Confounds
 conf_raw = pd.read_csv(conf_file, sep='\t')
-confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('^AROMAAggrComp')]]
-confound_list.loc[:,'WhiteMatter'] = conf_raw['WhiteMatter'].to_numpy()
-confound_list.loc[:,'CSF'] = conf_raw['CSF'].to_numpy()
+conf_names = ['^AROMAAggrComp', 'WhiteMatter', 'CSF'] # see Ciric et al., 2017, Neuroimage
+confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('|'.join(conf_names))]]
 
 ######## Model whole-brain BOLD data using motion confounds.
 niftimask = NiftiMasker(dtype='float32', t_r=2.34)
@@ -71,30 +70,28 @@ roi_countout_10 = []
 roi_output_3 = []
 roi_countout_3 = []
 
-######## Calculate correlation (raw depth vs PSC).
+######## Calculate correlation (raw depth vs activation).
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
-    ######## Correlate cortical depth with PSC
+    ######## Correlate cortical depth with activation
     roi_data = img_masked[:, [atlas_masked == roi][0][0][:]]
     roi_depth = depth_masked[0][[atlas_masked == roi][0][0][:]]
-    roi_mean = np.average(roi_data)
-    roi_data = (roi_data - roi_mean)/roi_mean # get PSC from average.
     roi_vox_avg = np.average(roi_data, axis=0)
     try: corr_list = np.vstack((corr_list,
-                        [pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between PSC and cortical depth.
+                        [pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between activation and cortical depth.
                          pearsonr(roi_vox_avg, roi_depth)[1], # p value
                          roi_data.shape[-1]]))
     except:
-        corr_list = [pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between PSC and cortical depth.
+        corr_list = [pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between activation and cortical depth.
                          pearsonr(roi_vox_avg, roi_depth)[1], # p value
                          roi_data.shape[-1]]
-#     corr_list.append([[pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between PSC and cortical depth.
+#     corr_list.append([[pearsonr(roi_vox_avg, roi_depth)[0], # Correlation between activation and cortical depth.
 #                        pearsonr(roi_vox_avg, roi_depth)[1], # p value
 #                        roi_data.shape[-1]]]) # Voxels in mask
 
 ######## Save correlations
 corr_out = pd.DataFrame({'subj':np.repeat(subj, len(np.unique(atlas_masked)[1:])),
                          'roi':np.unique(atlas_masked)[1:],
-                         'PSC_depth_corr':corr_list[:,0],
+                         'BOLD_depth_corr':corr_list[:,0],
                         'p_val':corr_list[:,1],
                         'ROI_n':corr_list[:,2]})
 corr_out.to_csv(os.path.join(work_dir, 'correlation_'+atlas.split('.')[0]+'_'+img_file.split('/')[-1].split('.nii.gz')[0]+'.csv'),
@@ -102,7 +99,7 @@ corr_out.to_csv(os.path.join(work_dir, 'correlation_'+atlas.split('.')[0]+'_'+im
 
 ######## Calculate depth (10 categories)
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
-    ######## Calculate PSC by depth bin (10 bins). # TODO get N for each group as well.
+    ######## Calculate activation by depth bin (10 bins).
     bins = np.linspace(0,1,11)
     roi_depth_10 = np.digitize(roi_depth, bins, right=True)
     roi_data_10 = [roi_data[:, roi_depth_10 == i].mean(axis=1) for i in range(1, len(bins))] # average across 10 bins
@@ -129,7 +126,7 @@ depth10_out.to_csv(os.path.join(work_dir, 'depth10'+atlas.split('.')[0]+'_'+img_
 
 ######## Calculate depth (3 categories)
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
-    ######## Calculate PSC by depth bin (3 bins).
+    ######## Calculate activation by depth bin (3 bins).
     bins = np.linspace(0,1,4)
     roi_depth_3 = np.digitize(roi_depth, bins, right=True)
     roi_data_3 = [roi_data[:, roi_depth_3 == i].mean(axis=1) for i in range(1, len(bins))] # average across 3 bins
@@ -162,6 +159,6 @@ atlas_head = fit_atlas.header
 atlas_head['cal_max'] = 1
 atlas_head['cal_min'] = 0
 nib.save(nib.Nifti1Image(out_atlas, fit_atlas.affine,
-                     atlas_head), os.path.join(work_dir, 'CORR_PSC_w_DEPTH_'+subj+'_'+atlas_file.split('/')[-1]))
+                     atlas_head), os.path.join(work_dir, 'CORR_BOLD_w_DEPTH_'+subj+'_'+atlas_file.split('/')[-1]))
 
 print('done with %s' % subj)
