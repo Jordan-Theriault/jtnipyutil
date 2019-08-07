@@ -2,7 +2,8 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
 --base debian:stretch --pkg-manager apt \
 --install gcc g++ graphviz tree \
           git vim emacs-nox nano less ncdu \
-          tig  \
+          tig openjdk-8-jdk \
+--run "export JCC_JDK=/usr/lib/jvm/java-8-openjdk-amd64" \
 --fsl version=5.0.11 \
 --ants version=2.2.0 \
 --convert3d version=1.0.0 \
