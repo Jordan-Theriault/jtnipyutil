@@ -74,6 +74,8 @@ roi_countout_3 = []
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
     ######## Correlate cortical depth with activation
     roi_data = img_masked[:, [atlas_masked == roi][0][0][:]]
+    roi_mean = np.average(roi_data)
+    roi_data = (roi_data - roi_mean)/roi_mean # get PSC from average.
     roi_depth = depth_masked[0][[atlas_masked == roi][0][0][:]]
     roi_vox_avg = np.average(roi_data, axis=0)
     try: corr_list = np.vstack((corr_list,
@@ -100,6 +102,9 @@ corr_out.to_csv(os.path.join(work_dir, 'correlation_'+atlas.split('.')[0]+'_'+im
 ######## Calculate depth (10 categories)
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
     ######## Calculate activation by depth bin (10 bins).
+    roi_data = img_masked[:, [atlas_masked == roi][0][0][:]]
+    roi_mean = np.average(roi_data)
+    roi_data = (roi_data - roi_mean)/roi_mean # get PSC from average.
     bins = np.linspace(0,1,11)
     roi_depth_10 = np.digitize(roi_depth, bins, right=True)
     roi_data_10 = [roi_data[:, roi_depth_10 == i].mean(axis=1) for i in range(1, len(bins))] # average across 10 bins
@@ -127,6 +132,9 @@ depth10_out.to_csv(os.path.join(work_dir, 'depth10'+atlas.split('.')[0]+'_'+img_
 ######## Calculate depth (3 categories)
 for idx, roi in enumerate(np.unique(atlas_masked)[1:]):
     ######## Calculate activation by depth bin (3 bins).
+    roi_data = img_masked[:, [atlas_masked == roi][0][0][:]]
+    roi_mean = np.average(roi_data)
+    roi_data = (roi_data - roi_mean)/roi_mean # get PSC from average.
     bins = np.linspace(0,1,4)
     roi_depth_3 = np.digitize(roi_depth, bins, right=True)
     roi_data_3 = [roi_data[:, roi_depth_3 == i].mean(axis=1) for i in range(1, len(bins))] # average across 3 bins
