@@ -34,10 +34,10 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     import os
     from jtnipyutil.util import files_from_template, clust_thresh, mask_img
 
-    for subj in subj_list: # For each subjet, create aqueduct template file wtih all thresholded clusters.
+    for subj in subj_list: # For each subject, create aqueduct template file wtih all thresholded clusters.
         print('creating aqueduct template for %s' % subj)
         try:
-            img_file = nib.load(files_from_template(subj, os.path.join(work_dir, 'subj_clusts', '*_sigmasquare_clusts.nii.gz'))[0])
+            img_info = nib.load(files_from_template(subj, os.path.join(work_dir, 'subj_clusts', '*_sigmasquare_clusts.nii.gz'))[0])
         except:
             img_file  = files_from_template(subj, template)[0]
             img_info = nib.load(img_file)
@@ -248,7 +248,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     dartel.inputs.image_files = [images]
 
     dartel_warp = pe.Node(interface=CreateWarped(), name='dartel_warp')
-    warp_data.inputs.image_files = [images]
+    dartel_warp.inputs.image_files = images
     #     warp_data.inputs.flowfield_files = # from inputspec
 
     DARTEL_wf.connect([(dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')])])
