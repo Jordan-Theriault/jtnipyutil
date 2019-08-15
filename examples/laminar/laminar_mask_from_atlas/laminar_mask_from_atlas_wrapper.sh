@@ -7,7 +7,7 @@ setenv IMG ${SUBJ}_task-rest_run-01_bold_space-MNI152NLin2009cAsym_preproc.nii.g
 setenv CONFOUND ${SUBJ}_task-rest_run-01_bold_confounds.tsv
 setenv SINGULARITY /usr/bin/singularity
 setenv IMAGE /autofs/cluster/iaslab/users/jtheriault/singularity_images/nighres/nighres-2019-05-07-9ae9dfd9c326.simg
-setenv ATLAS MMP_in_MNI_corr.nii.gz
+setenv ATLAS COMBINED_DILATED1mm_Glasser_atlas_2009cAsym.nii.gz
 
 setenv LAMINAR_DATA /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/
 setenv RAW_DATA /autofs/cluster/iaslab/FSMAP/FSMAP_data/BIDS_fmriprep/fmriprep/ses-01
@@ -18,7 +18,7 @@ mkdir -p /scratch/$USER/$SUBJ/$PROJNAME/data
 cp -ra $RAW_DATA/$SUBJ/func/$IMG /scratch/$USER/$SUBJ/$PROJNAME/data/
 cp -ra $RAW_DATA/$SUBJ/func/$CONFOUND /scratch/$USER/$SUBJ/$PROJNAME/data/
 cp -ra $LAMINAR_DATA/depth/$DEPTH /scratch/$USER/$SUBJ/$PROJNAME/data/
-cp -a $LAMINAR_DATA/rois/MMP_in_MNI_corr.nii.gz /scratch/$USER/$SUBJ/$PROJNAME/data/
+cp -a $LAMINAR_DATA/rois/$ATLAS /scratch/$USER/$SUBJ/$PROJNAME/data/
 
 mkdir -p /scratch/$USER/$SUBJ/$PROJNAME/scripts
 cp -ra $SCRIPTS/* /scratch/$USER/$SUBJ/$PROJNAME/scripts/
