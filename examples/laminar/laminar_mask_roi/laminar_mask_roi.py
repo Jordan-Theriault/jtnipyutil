@@ -24,7 +24,9 @@ mask_list = ['dACC_Wager.rh.sm08.vol.nii.gz',
              'mvAIns_Harper.rh.sm08.vol.nii.gz',
              'pgACC_Gianaros.rh.sm08.vol.nii.gz',
              'sgACC_Gianaros.rh.sm08.vol.nii.gz'] # TODO this mask list will have to come from the atlas instead.
-
+conf_names = ['^AROMAAggrComp', 'WhiteMatter', 'CSF'] # see Ciric et al., 2017, Neuroimage SET VARIABLE TO INCLUDE CONFOUNDS. ACCEPTS A STRING, OR A LIST OF STRINGS.
+# conf_names = 'TCompCor' # see following ANTS normalization, used in Kashyap et al., 2018, Sci Reports
+detrend_tf = False
 
 ######## Fit cortical depth to the resting state data (affine and shape), then flatten.
 fit_depth = resample_img(nib.load(depth_file),
@@ -37,9 +39,6 @@ nib.save(nib.Nifti1Image(fit_depth_data, fit_depth.affine,
                          fit_depth.header), os.path.join(work_dir, 'ALIGN_'+depth_file.split('/')[-1]))
 depth_flat = np.reshape(fit_depth_data, np.prod(fit_depth_data.shape))
 
-######## Get AROMA Confounds
-conf_raw = pd.read_csv(conf_file, sep='\t')
-conf_AROMA = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('^AROMAAggrComp')]]
 fig, ax = plt.subplots(nrows=len(mask_list), ncols=2)
 
 for idx, mask in enumerate(mask_list):
@@ -59,9 +58,16 @@ for idx, mask in enumerate(mask_list):
     depth_masked = depth_flat[mask_flat>0]
 
     # Mask BOLD data, modeling motion confounds.
-    niftimask = NiftiMasker(dtype='float32', t_r=2.34)
+    niftimask = NiftiMasker(dtype='float32', t_r=2.34, detrend=detrend_tf)
     niftimask.fit(fit_mask)
-    img_masked = niftimask.transform(img_file, confounds=conf_AROMA.values)
+    ######## Get Confounds, if specified.
+    if conf_names:
+        conf_raw = pd.read_csv(conf_file, sep='\t')
+        if isinstance(conf_names, list):
+            confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('|'.join(conf_names))]]
+        else:
+            confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains(conf_names)]]
+    img_masked = niftimask.transform(img_file, confounds=confound_list.values)
     assert img_masked.shape[1] == len(depth_masked), 'masked image and masked depth are not equal length'
 
     # remove any additional voxels with no cortical depth
