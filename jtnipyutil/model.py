@@ -5,8 +5,8 @@ def create_lvl2tfce_wf(mask=False):
         ~~~~~~~~~~~ Set through inputs.inputspec
 
         fwhm_list: list of strings representing smoothing kernels. Can be run iterably.
-            'None' represents no smoothing.
-            e.g. ['none', '1.5', '6']
+            'nosmooth' represents no smoothing.
+            e.g. ['nosmooth', '1.5', '6']
             ** Often you will want to input this with an iterable node.
 
         contrast: Character defining contrast name.
@@ -99,7 +99,7 @@ def create_lvl2tfce_wf(mask=False):
     def get_template(fwhm, contrast, input_dir, output_dir):
         import os
         # makes template to grab copes files, based on the smoothing kernel being processed.
-        if fwhm == 'none':
+        if fwhm == 'nosmooth':
             con_file = 'cope'+contrast+'.nii.gz'
             template={
                 'cope': os.path.join(input_dir, 'nosmooth', 'sub-*', 'model', '*', '*', con_file)
