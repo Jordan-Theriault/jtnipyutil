@@ -255,7 +255,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
 
     return DARTEL_wf
 
-def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
+def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir, out_dir):
     '''
     subj_list: list of strings for each subject
         e.g. ['sub-001', 'sub-002', 'sub-003']
@@ -269,13 +269,15 @@ def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
         same as above.
         Dartel flowfield files are made by create_DARTEL_wf,
             also see jtnipyutil.fsmap.make_PAG_masks, and jtnipyutil.fsmap.create_aqueduct_template
-    workdir: string naming directory to store output and work.
+    work_dir: string naming directory to store work.
+    out_dir: string naming directory for output.
     '''
     import os
     import nibabel as nib
     import numpy as np
     import nipype.pipeline.engine as pe
     from nipype import IdentityInterface
+    from nipype.interfaces.io import DataSink
     from nipype.interfaces.utility.wrappers import Function
     from nipype.interfaces.spm.preprocess import CreateWarped
     from jtnipyutil.util import files_from_template
@@ -283,6 +285,8 @@ def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
     # create working directory if necessary.
     if not os.path.isdir(work_dir):
         os.makedirs(work_dir)
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
 
     # set up data warp workflow
     apply_warp_wf = pe.Workflow(name='apply_warp_wf')
@@ -318,19 +322,20 @@ def setup_DARTEL_warp_wf(subj_list, data_template, warp_template, work_dir):
 #     warp_data.inputs.image_files = # from inputspec OR gunzip
 #     warp_data.inputs.flowfield_files = # from inputspec
 
+    sinker = pe.Node(DataSink(), name='sinker')
+    sinker.inputs.base_directory = out_dir
+
     # check if unzipping is necessary.
+    apply_warp_wf.connect([(inputspec, rename, [('file_list', 'in_list')]),
+                           (inputspec, warp_data, [('warp_list', 'flowfield_files')]),
+                           (warp_data, sinker, [('warped_files', 'warped_files')])])
     if any('nii.gz' in file for file in files_from_template(subj_list, data_template)):
         from nipype.algorithms.misc import Gunzip
         gunzip = pe.MapNode(interface=Gunzip(), name='gunzip', iterfield=['in_file'])
-#         gunzip.in_file = # From inputspec
-        apply_warp_wf.connect([(inputspec, rename, [('file_list', 'in_list')]),
-                               (rename, gunzip, [('out_list', 'in_file')]),
-                               (gunzip, warp_data, [('out_file', 'image_files')]),
-                               (inputspec, warp_data, [('warp_list', 'flowfield_files')])])
+        apply_warp_wf.connect([(rename, gunzip, [('out_list', 'in_file')]),
+                               (gunzip, warp_data, [('out_file', 'image_files')])])
     else:
-        apply_warp_wf.connect([(inputspec, rename, [('file_list', 'in_list')]),
-                               (rename, warp_data, [('out_list', 'image_files')])
-                               (inputspec, warp_data, [('warp_list', 'flowfield_files')])])
+        apply_warp_wf.connect([(rename, warp_data, [('out_list', 'image_files')])])
     return apply_warp_wf
 
 def get_cortical_thickness(subj, data_dir, work_dir, space=''):
