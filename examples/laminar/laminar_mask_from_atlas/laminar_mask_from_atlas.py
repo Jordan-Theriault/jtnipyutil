@@ -52,8 +52,9 @@ if conf_names:
         confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains('|'.join(conf_names))]]
     else:
         confound_list = conf_raw[conf_raw.columns[conf_raw.columns.to_series().str.contains(conf_names)]]
-
-img_masked = niftimask.transform(img_file, confounds=confound_list.values)
+    img_masked = niftimask.transform(img_file, confounds=confound_list.values)
+else:
+    img_masked = niftimask.transform(img_file)
 
 ######## Mask atlas by cortical depth.
 niftimask_atlas = NiftiMasker(dtype='float32')
