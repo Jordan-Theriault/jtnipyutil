@@ -18,7 +18,9 @@ conf_file = root+'/data/'+os.environ['CONFOUND']
 work_dir = root+'/nighres'
 atlas = os.environ['ATLAS']
 # conf_names = ['^AROMAAggrComp', 'WhiteMatter', 'CSF'] # see Ciric et al., 2017, Neuroimage SET VARIABLE TO INCLUDE CONFOUNDS. ACCEPTS A STRING, OR A LIST OF STRINGS.
-conf_names = 'TCompCor' # see following ANTS normalization, used in Kashyap et al., 2018, Sci Reports
+# detrend_tf = True
+# conf_names = 'TCompCor' # see following ANTS normalization, used in Kashyap et al., 2018, Sci Reports
+conf_names = None
 detrend_tf = False
 
 ######## Fit cortical depth to the resting state data (affine and shape)
