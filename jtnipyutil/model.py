@@ -4,10 +4,13 @@ def create_lvl2tfce_wf(mask=False):
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
-        fwhm_list: list of strings representing smoothing kernels. Can be run iterably.
-            'nosmooth' represents no smoothing.
-            e.g. ['nosmooth', '1.5', '6']
-            ** Often you will want to input this with an iterable node.
+        proj_name: String, naming subdirectory to use to identify this instance of lvl2 modeling.
+            e.g. 'nosmooth'
+            The string will be used as a subdirectory in output_dir.
+
+        copes_template: String, naming full path to the cope files. Use wildcards to grab all cope files wanted.
+            contrast (below) will be used iteratively to grab only the appropriate con files from this glob list on each iteration.
+            e.g. inputs.inputspec.copes_template = '/home/neuro/workdir/stress_lvl2/data/nosmooth/sub-*/model/sub-*/_modelestimate0/cope*nii.gz'
 
         contrast: Character defining contrast name.
             Name should match a dictionary entry in full_cons and con_regressors.
@@ -19,12 +22,10 @@ def create_lvl2tfce_wf(mask=False):
             e.g. full_cons = {
                 '1_instructions_Instructions': [('1_instructions_Instructions', 'T', ['1_instructions_Instructions'], [1])]
                 }
-
-        input_dir: string, representing directory to level1 data, modeled using jt_modeling.create_lvl1pipe_wf.
-            e.g. inputs.inputspec.input_dir = '/home/neuro/data'
-
         output_dir: string, representing directory of output.
             e.g. inputs.inputspec.output_dir ='/home/neuro/output'
+            In the output directory, the data will be stored in a root dir, giving the time and date of processing.
+            If a mask is used, the mask will also be included in the output folder name. wholebrain is used otherwise.
 
         subject_list: list of string, with BIDs-format IDs to identify subjects.
             Use this to drop high movement subjects, even if they are among other files that will be grabbed.
@@ -61,14 +62,14 @@ def create_lvl2tfce_wf(mask=False):
     lvl2tfce_wf = pe.Workflow(name='lvl2tfce_wf')
 
     inputspec = pe.Node(IdentityInterface(
-        fields=['input_dir',
+        fields=['proj_name',
+                'copes_template',
                 'output_dir',
                 'mask_file',
                 'subject_list',
                 'con_regressors',
                 'full_cons',
                 'sinker_subs',
-                'fwhm',
                 'contrast'
                 ],
         mandatory_inputs=False),
@@ -76,54 +77,23 @@ def create_lvl2tfce_wf(mask=False):
     if mask:
         inputspec.inputs.mask_file = mask
 
-    ################## Make template
-    def mk_outdir(output_dir, mask=False):
+    ################## Make output directory.
+    def mk_outdir(output_dir, proj_name, mask=False):
         import os
         from time import gmtime, strftime
         time_prefix = strftime("%Y-%m-%d_%Hh-%Mm", gmtime())+'_'
         if mask:
             new_out_dir = os.path.join(output_dir, time_prefix + mask.split('/')[-1].split('.')[0])
         else:
-            new_out_dir = os.path.join(output_dir, time_prefix + 'wholebrain')
+            new_out_dir = os.path.join(output_dir, time_prefix + 'wholebrain', proj_name)
         if not os.path.isdir(new_out_dir):
             os.makedirs(new_out_dir)
         return new_out_dir
 
-    make_outdir = pe.Node(Function(input_names=['output_dir', 'mask'],
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'proj_name', 'mask'],
                                    output_names=['new_out_dir'],
                                    function=mk_outdir),
                           name='make_outdir')
-    # make_template.inputs.output_dir = from inputspec
-    # make_template.inputs.mask = from inputspec
-
-    def get_template(fwhm, contrast, input_dir, output_dir):
-        import os
-        # makes template to grab copes files, based on the smoothing kernel being processed.
-        if fwhm == 'nosmooth':
-            con_file = 'cope'+contrast+'.nii.gz'
-            template={
-                'cope': os.path.join(input_dir, 'nosmooth', 'sub-*', 'model', '*', '*', con_file)
-            }
-            out_path = os.path.join(output_dir, 'nosmooth')
-        else:
-            fwhm_path = 'fwhm_'+fwhm
-            con_file = 'cope'+contrast+'.nii.gz'
-            template={
-                'cope': os.path.join(input_dir, 'smooth', 'sub-*', 'model',
-                                     '*'+fwhm_path+'*', '*', con_file)
-            }
-            out_path = os.path.join(output_dir, fwhm)
-        if not os.path.isdir(out_path):
-            os.makedirs(out_path)
-        return template, out_path
-
-    make_template = pe.Node(Function(input_names=['fwhm', 'contrast', 'input_dir', 'output_dir'],
-                                     output_names=['template', 'out_path'],
-                                     function=get_template),
-                            name='make_template')
-    # make_template.inputs.output_dir = from make_outdir
-    # make_template.inputs.input_dir = from inputspec
-    # make_template.inputs.fwhm # From inputspec.
 
     ################## Get contrast
     def get_con(contrast, full_cons, con_regressors):
@@ -137,27 +107,27 @@ def create_lvl2tfce_wf(mask=False):
                              name='get_model_info')
     # get_model_info.inputs.full_cons = From inputspec
     # get_model_info.inputs.full_regs = From inputspec
+    # get_model_info.inputs.contrast = From inputspec
 
     ################## Get files
-    def get_files(subject_list, template):
+    def get_files(subject_list, copes_template, contrast):
         import glob
         temp_list = []
-        out_list = []
-        for x in glob.glob(list(template.values())[0]):
+        for x in glob.glob(copes_template):
             if any(subj in x for subj in subject_list):
                 temp_list.append(x)
-        for file in temp_list: # ensure no duplicate entries.
-            if file not in out_list:
-                out_list.append(file)
+        out_list = [x for x in temp_list if contrast in x]
         return out_list
 
     get_copes = pe.Node(Function(
-        input_names=['subject_list', 'template'],
+        input_names=['subject_list', 'copes_template', 'contrast'],
         output_names=['out_list'],
         function=get_files),
                         name='get_copes')
     # get_copes.inputs.subject_list = # From inputspec
-    # get_copes.inputs.template = template # From make_template.
+    # get_copes.inputs.copes_template = # From inputspec.
+    # get_copes.inputs.contrast = # From inputspec.
+
 
     ################## Merge into 4d files.
     import nipype.interfaces.fsl as fsl # fsl
@@ -211,16 +181,14 @@ def create_lvl2tfce_wf(mask=False):
 
     ################## Setup Pipeline.
     lvl2tfce_wf.connect([
-        (inputspec, make_outdir, [('output_dir', 'output_dir')]),
-        (make_outdir, make_template, [('new_out_dir', 'output_dir')]),
-        (inputspec, make_template, [('fwhm', 'fwhm'),
-                                    ('contrast', 'contrast'),
-                                    ('input_dir', 'input_dir')]),
+        (inputspec, make_outdir, [('output_dir', 'output_dir'),
+                                 ('proj_name', 'proj_name')]),
         (inputspec, get_model_info, [('full_cons', 'full_cons'),
                                     ('con_regressors', 'con_regressors')]),
         (inputspec, get_model_info, [('contrast', 'contrast')]),
-        (inputspec, get_copes, [('subject_list', 'subject_list')]),
-        (make_template, get_copes, [('template', 'template')]),
+        (inputspec, get_copes, [('subject_list', 'subject_list'),
+                               ('contrast', 'contrast'),
+                               ('copes_template', 'copes_template')]),
         (get_copes, merge_copes, [('out_list', 'in_files')]),
         (get_model_info, level2model, [('con_info', 'contrasts')]),
         (get_model_info, level2model, [('reg_info', 'regressors')]),
@@ -239,14 +207,12 @@ def create_lvl2tfce_wf(mask=False):
 
     lvl2tfce_wf.connect([
         (inputspec, sinker, [('sinker_subs', 'substitutions')]),
-        (make_template, sinker, [('out_path', 'base_directory')]),
+        (make_outdir, sinker, [('new_out_dir', 'base_directory')]),
         (level2model, sinker, [('design_con', 'out.@con')]),
         (level2model, sinker, [('design_grp', 'out.@grp')]),
         (level2model, sinker, [('design_mat', 'out.@mat')]),
         (randomise, sinker, [(('t_corrected_p_files', adj_minmax), 'out.@t_cor_p')]),
         (randomise, sinker, [(('tstat_files', adj_minmax), 'out.@t_stat')]),
-        # (randomise, sinker, [('t_corrected_p_files', 'out.@t_cor_p')]),
-        # (randomise, sinker, [('tstat_files', 'out.@t_stat')]),
         ])
     return lvl2tfce_wf
 
