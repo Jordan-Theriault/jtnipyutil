@@ -1,4 +1,4 @@
-def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space_mask):
+def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, out_dir, space_mask):
     '''
     The workflow takes the following as input to wf.inputs.inputspec
     Input [Mandatory]:
@@ -16,6 +16,8 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
                     This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
         work_dir: string, denoting path to working directory.
+
+        out_dir: string, denoting output directory (results saved to work directory and output)
 
         space_mask: string, denoting path to PAG search region mask.
     Output:
@@ -54,9 +56,12 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
             pag_img.header['cal_min'] = 0 # fix header info
             try:
                 nib.save(pag_img, os.path.join(work_dir, 'subj_clusts', subj+'_sigmasquare_clusts.nii.gz'))
+                nib.save(pag_img, os.path.join(out_dir, 'subj_clusts', subj+'_sigmasquare_clusts.nii.gz'))
             except:
                 os.makedirs(os.path.join(work_dir, 'subj_clusts'))
+                os.makedirs(os.path.join(out_dir, 'subj_clusts'))
                 nib.save(pag_img, os.path.join(work_dir, 'subj_clusts', subj+'_sigmasquare_clusts.nii.gz'))
+                nib.save(pag_img, os.path.join(out_dir, 'subj_clusts', subj+'_sigmasquare_clusts.nii.gz'))
 
     ## gather all subjects clusters/thresholds into a 5d array. ##########################################
     for subj in subj_list:
@@ -122,9 +127,12 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
         subj_temp.header['cal_min'] = 0 # fix header info
         try:
             nib.save(subj_temp, os.path.join(work_dir, 'templates', subj_list[img_idx]+'_aqueduct_template.nii.gz'))
+            nib.save(subj_temp, os.path.join(out_dir, 'templates', subj_list[img_idx]+'_aqueduct_template.nii.gz'))
         except:
             os.makedirs(os.path.join(work_dir, 'templates'))
+            os.makedirs(os.path.join(out_dir, 'templates'))
             nib.save(subj_temp, os.path.join(work_dir, 'templates', subj_list[img_idx]+'_aqueduct_template.nii.gz'))
+            nib.save(subj_temp, os.path.join(out_dir, 'templates', subj_list[img_idx]+'_aqueduct_template.nii.gz'))
 
     print('Saving aqueduct mean template.')
     img_info = nib.load(files_from_template(subj_list[0], os.path.join(work_dir, 'subj_clusts', '*_sigmasquare_clusts.nii.gz'))[0])
@@ -132,11 +140,13 @@ def create_aqueduct_template(subj_list, p_thresh_list, template, work_dir, space
     aq_temp_img.header['cal_max'] = 1 # fix header info
     aq_temp_img.header['cal_min'] = 0 # fix header info
     nib.save(aq_temp_img, os.path.join(work_dir, 'templates', 'MEAN_aqueduct_template.nii.gz'))
+    nib.save(aq_temp_img, os.path.join(out_dir, 'templates', 'MEAN_aqueduct_template.nii.gz'))
 
     print('Saving report')
     aq_report.to_csv(os.path.join(work_dir, 'templates', 'report.csv'))
+    aq_report.to_csv(os.path.join(out_dir, 'templates', 'report.csv'))
 
-def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = .5, gm_spline=3, dilation_r=2, x_minmax=False, y_minmax=False, z_minmax=False):
+def make_PAG_masks(subj_list, data_template, gm_template, work_dir, out_dir, gm_thresh = .5, gm_spline=3, dilation_r=2, x_minmax=False, y_minmax=False, z_minmax=False):
     '''
     subj_list: list of subject IDs
         e.g. [sub-001, sub-002]
@@ -152,6 +162,8 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
         e.g. gm_template = os.path.join('work_dir, 'gm', '*_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz')
 
     work_dir: string, denoting path to working directory.
+
+    out_dir: string, denoting output directory (results saved to work directory and output)
 
     gm_thresh: float specifying the probability to threshold gray matter mask.
         Default: .5
@@ -209,11 +221,14 @@ def make_PAG_masks(subj_list, data_template, gm_template, work_dir, gm_thresh = 
         pag_file = nib.Nifti1Image(pag, img_file.affine, img_file.header)
         try:
             nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
+            nib.save(pag_file, os.path.join(out_dir, 'pag_mask', subj+'_pag_mask.nii'))
         except:
             os.makedirs(os.path.join(work_dir, 'pag_mask'))
+            os.makedirs(os.path.join(out_dir, 'pag_mask'))
             nib.save(pag_file, os.path.join(work_dir, 'pag_mask', subj+'_pag_mask.nii'))
+            nib.save(pag_file, os.path.join(out_dir, 'pag_mask', subj+'_pag_mask.nii'))
 
-def create_DARTEL_wf(subj_list, file_template, work_dir):
+def create_DARTEL_wf(subj_list, file_template, work_dir, out_dir):
     '''
     Aligns all images to a template (average of all images), then warps images into MNI space (using an SPM tissue probability map, see https://www.fil.ion.ucl.ac.uk/spm/doc/manual.pdf, section 25.4).
 
@@ -228,6 +243,8 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
                 This means the template can overgeneralize, but specific subjects can be easily excluded (e.g. for movement)
 
     work_dir: string, denoting path to working directory.
+
+    out_dir: string, denoting output directory (results saved to work directory and output)
     '''
     import nibabel as nib
     import numpy as np
@@ -251,7 +268,15 @@ def create_DARTEL_wf(subj_list, file_template, work_dir):
     dartel_warp.inputs.image_files = images
     #     warp_data.inputs.flowfield_files = # from inputspec
 
-    DARTEL_wf.connect([(dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')])])
+    ################## Setup datasink.
+    sinker = pe.Node(DataSink(parameterization=True), name='sinker')
+    sinker.inputs.base_dir = out_dir
+
+    DARTEL_wf.connect([(dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]),
+                       (dartel, sinker, [('final_template_file', 'avg_template'),
+                                        ('template_files', 'avg_template.@template_stages'),
+                                        ('dartel_flow_fields', 'dartel_flow')]),
+                       (dartel_warp, sinker, [('warped_files', 'warped_PAG')])])
 
     return DARTEL_wf
 
