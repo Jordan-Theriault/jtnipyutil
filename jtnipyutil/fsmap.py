@@ -270,7 +270,7 @@ def create_DARTEL_wf(subj_list, file_template, work_dir, out_dir):
 
     ################## Setup datasink.
     sinker = pe.Node(DataSink(parameterization=True), name='sinker')
-    sinker.inputs.base_dir = out_dir
+    sinker.inputs.base_directory = out_dir
 
     DARTEL_wf.connect([(dartel, dartel_warp, [('dartel_flow_fields', 'flowfield_files')]),
                        (dartel, sinker, [('final_template_file', 'avg_template'),
