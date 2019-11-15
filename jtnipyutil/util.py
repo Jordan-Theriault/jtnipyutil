@@ -532,3 +532,63 @@ def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
                         nib.save(roi_kdata_out, os.path.join(work_dir, prefix + '-' + str(k_out+1)+'.nii'))
                 # save full ROI.
                 nib.save(roi_data_out, os.path.join(work_dir, prefix + ".nii"))
+
+def kmean_ROI(roi_dir, work_dir, target_roi_list, kmean_num):
+    '''
+    This function iterates through 3d .nii ROI files within a folder and performs kmeans clustering on each.
+
+    Input [Mandatory]:
+    roi_dir = string referencing a folder with 3d ROI files, each with .nii extension.
+        e.g. '/home/neuro/atlases/atlas atlas/v4_2009cAsym_uninflated/niftis'
+    work_dir = string to working directory folder. output saved here.
+    target_roi_list = list of strings, each with a unique identifier for the ROI.
+        e.g. ['L_25_ROI.nii', 'R_25_ROI.nii'].
+    kmean_num = integer or list of integers.
+        Denotes number of k means clusters to create in all ROIs (if integer), or in each ROI (if a list).
+
+    Example Input:
+    roi_dir = '/home/neuro/atlases/Glasser atlas/v4_2009cAsym_uninflated/niftis'
+    work_dir = '/home/neuro/workdir/inflate_ROIs'
+    target_roi_list = ['L_25_ROI.nii', 'R_25_ROI.nii']
+    kmean_num = 3
+    OR kmean_num = [3, 5]
+
+    kmean_ROI(roi_dir, work_dir, target_roi_list, kmean_num)
+    '''
+    import nibabel as nib
+    import os
+    import glob
+    import numpy as np
+    from scipy.spatial.distance import pdist
+    from sklearn.cluster import KMeans
+
+    atlas_rois = glob.glob(os.path.join(roi_dir, '*.nii'))
+    for roi in atlas_rois:
+        for idx, t_roi in enumerate(target_roi_list):
+            if t_roi in roi:
+                if type(kmean_num) == list:
+                    kmean_target = kmean_num[idx]
+                else:
+                    kmean_target = kmean_num
+                print(('ROI: %s') % roi)
+                roi_data = nib.load(roi).get_data()
+                roi_xyz = np.where(roi_data == 1) # grab coordinates within mask.
+                roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
+                roi_kmeans = KMeans(n_clusters = kmean_target).fit(roi_xyz_2d) # use kmeans clustering on x,y,z coordinates. We are clustering based on distance, s indexed by voxel dimensions.
+                for lab in np.unique(roi_kmeans.labels_): # Now, we fill back in the kmeans labels into the original mask.
+                    label_xyz = roi_xyz_2d[roi_kmeans.labels_ == lab]
+                    x_coord = [label_xyz[:][coord][0] for coord in range(len(label_xyz))]
+                    y_coord = [label_xyz[:][coord][1] for coord in range(len(label_xyz))]
+                    z_coord = [label_xyz[:][coord][2] for coord in range(len(label_xyz))]
+                    roi_data[x_coord, y_coord, z_coord] = lab+1
+                # save and output data.
+                roi_data_out = nib.Nifti1Image(roi_data, nib.load(roi).affine, nib.load(roi).header)
+                prefix = roi.split('/')[-1].split('.nii')[0]+'_infl'+str(vox_dilate)+'_kMeanCluster'
+                for k_out in range(kmean_target): # save separate kmean clusters.
+                    roi_data_k = np.copy(roi_data)
+                    roi_data_k[roi_data != k_out+1] = 0
+                    roi_data_k[roi_data == k_out+1] = 1
+                    roi_kdata_out = nib.Nifti1Image(roi_data_k, nib.load(roi).affine, nib.load(roi).header)
+                    nib.save(roi_kdata_out, os.path.join(work_dir, prefix + '-' + str(k_out+1)+'.nii'))
+                # save full ROI.
+                nib.save(roi_data_out, os.path.join(work_dir, prefix + ".nii"))
