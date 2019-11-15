@@ -417,3 +417,118 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
         out_cdata[out_cdata.isna()] = 0
         out_confname = cfile.split('/')[-1].partition('run-')[0] + cfile.split('/')[-1].partition('run-')[-1][3:]
         out_cdata.to_csv(os.path.join(out_folder, out_confname), sep='\t', index=False)
+
+def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
+                           mni_gm_file='', gm_thresh=1,
+                           x_axis_midpoint = '', l_hem = '', r_hem = '', kmean_num = ''):
+    '''
+    This function iterates through 3d .nii ROI files within a folder and inflates each
+    by a specified amount, saving the output
+
+    Input [Mandatory]:
+    roi_dir = string referencing a folder with 3d ROI files, each with .nii extension.
+        e.g. '/home/neuro/atlases/atlas atlas/v4_2009cAsym_uninflated/niftis'
+    work_dir = string to working directory folder. output saved here.
+    target_roi_list = list of strings, each with a unique identifier for the ROI.
+        e.g. ['L_25_ROI.nii', 'R_25_ROI.nii'].
+    vox_dilate = integer, denoting how many voxels to dilate each ROI.
+
+    Input [Optional]:
+    mni_gm_file = path to MNI GM probabalistic map .nii file.
+        e.g. '/home/neuro/atlases/MNI/mni_icbm152_nlin_asym_09c_nifti/mni_icbm152_nlin_asym_09c/mni_icbm152_gm_tal_nlin_asym_09c.nii'
+    gm_thresh = numeric, denoting threshold for MNInii'
+        e.g. set threshold of .5 for regions near the midline and insula.
+        e.g. set threshold to .05 for regions near the cortical surface.
+    x_axis_midpoint = integer, denoting x axis midpoint in voxel space.
+        If hemispheres are identifed then all voxels to the left/right of this point will be masked.
+        This is to avoid inflating midline ROIs into the opposite hemisphere.
+    l_hem = string, unique identifier within ROI filenames identifying ROI as in the LEFT hemisphere.
+        e.g. 'lh.L_'
+    r_hem = string, unique identifier within ROI filenames identifying ROI as in the RIGHT hemisphere.
+        e.g. 'rh.R_'
+    kmean_num = integer, denoting number of k means clusters to create in each ROI.
+
+    Example Input:
+    roi_dir = '/home/neuro/atlases/Glasser atlas/v4_2009cAsym_uninflated/niftis'
+    work_dir = '/home/neuro/workdir/inflate_ROIs'
+    target_roi_list = ['L_25_ROI.nii', 'R_25_ROI.nii']
+    vox_dilate = 3
+    mni_gm_file = '/home/neuro/atlases/MNI/mni_icbm152_nlin_asym_09c_nifti/mni_icbm152_nlin_asym_09c/mni_icbm152_gm_tal_nlin_asym_09c.nii'
+    gm_thresh = .5
+    x_axis_midpoint = 129 # in voxel space.
+    l_hem = 'lh.L_'
+    r_hem = 'rh.R_'
+    kmean_num = 3
+
+    inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
+                       mni_gm_file, gm_thresh, x_axis_midpoint, l_hem, r_hem, kmean_num)
+    '''
+    import nibabel as nib
+    import os
+    import glob
+    import numpy as np
+    from scipy.ndimage.morphology import binary_dilation
+    from skimage.morphology import ball
+    from nilearn.image import resample_img
+    from scipy.ndimage import label
+    from scipy.spatial.distance import pdist
+    from sklearn.cluster import KMeans
+
+    atlas_rois = glob.glob(os.path.join(roi_dir, '*.nii'))
+    if mni_gm_file:
+        # Grab gm mask
+        MNIgm = nib.load(mni_gm_file)
+        # Grab > .5
+        MNI_out = nib.Nifti1Image(np.where(MNIgm.get_data()>gm_thresh, 1, 0), MNIgm.affine, MNIgm.header)
+        # Resize to atlas space.
+        MNI_resize = resample_img(MNI_out,
+                                  target_affine=nib.load(atlas_rois[0]).affine,
+                                  target_shape=nib.load(atlas_rois[0]).shape[0:3],
+                        interpolation='nearest')
+        # nib.save(MNI_resize, os.path.join(work_dir, 'MNIgm_resized_binarized.nii.gz'))
+    # Grab target ROIs
+    for roi in atlas_rois:
+        for t_roi in target_roi_list:
+            if t_roi in roi:
+                print(('ROI: %s') % roi)
+                roi_data = nib.load(roi).get_data()
+                # dilate
+                roi_data = binary_dilation(roi_data, ball(vox_dilate)).astype(roi_data.dtype)
+                if mni_gm_file: # chop the data using thresholded MNI, and see if any clusters emerge.
+                    roi_data_clust = np.copy(roi_data)
+                    roi_data_clust[MNI_resize.get_data() == 0] = 0
+                    label_map, n_labels = label(roi_data_clust)
+                    if n_labels > 1:
+                        # If there are clusters, then grab the largest cluster and return it.
+                        unique, counts = np.unique(roi_data_clust, return_counts=True)
+                        print(('ROI: %s, \nGrabbing cluster: %s') % (roi, np.argmax(unique[1:])+1))
+                        roi_data = np.where(roi_data_clust==(np.argmax(unique[1:])+1), 1, 0)
+                if r_hem in roi:
+                    roi_data[x_axis_midpoint:,:,:] = 0
+                if l_hem in roi:
+                    roi_data[:x_axis_midpoint,:,:] = 0
+                if kmean_num:# kmeans clustering.
+                    roi_xyz = np.where(roi_data == 1) # grab coordinates within mask.
+                    roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
+                    roi_kmeans = KMeans(n_clusters = kmean_num).fit(roi_xyz_2d) # use kmeans clustering on x,y,z coordinates. We are clustering based on distance, s indexed by voxel dimensions.
+                    for lab in np.unique(roi_kmeans.labels_): # Now, we fill back in the kmeans labels into the original mask.
+                        label_xyz = roi_xyz_2d[roi_kmeans.labels_ == lab]
+                        x_coord = [label_xyz[:][coord][0] for coord in range(len(label_xyz))]
+                        y_coord = [label_xyz[:][coord][1] for coord in range(len(label_xyz))]
+                        z_coord = [label_xyz[:][coord][2] for coord in range(len(label_xyz))]
+                        roi_data[x_coord, y_coord, z_coord] = lab+1
+                # save and output data.
+                roi_data_out = nib.Nifti1Image(roi_data, nib.load(roi).affine, nib.load(roi).header)
+                prefix = roi.split('/')[-1].split('.nii')[0]+'_infl'+str(vox_dilate)
+                if gm_thresh:
+                    prefix =  prefix + '_gmthresh'+str(gm_thresh).split('.')[-1]
+                if kmean_num:
+                    prefix = prefix + '_kMeanCluster'
+                    for k_out in range(kmean_num): # save separate kmean clusters.
+                        roi_data_k = np.copy(roi_data)
+                        roi_data_k[roi_data != k_out+1] = 0
+                        roi_data_k[roi_data == k_out+1] = 1
+                        roi_kdata_out = nib.Nifti1Image(roi_data_k, nib.load(roi).affine, nib.load(roi).header)
+                        nib.save(roi_kdata_out, os.path.join(work_dir, prefix + '-' + str(k_out+1)+'.nii'))
+                # save full ROI.
+                nib.save(roi_data_out, os.path.join(work_dir, prefix + ".nii"))
