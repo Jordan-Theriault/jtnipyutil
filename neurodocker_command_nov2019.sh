@@ -17,7 +17,6 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
                https://github.com/INCF/pybids/tarball/0.9.4
                nltools nilearn datalad[full] nipy duecredit niwidgets
                mne deepdish hypertools ipywidgets pynv six nibabel joblib==0.11
-               git+https://github.com/poldracklab/fmriprep.git
                git+https://github.com/poldracklab/niworkflows.git" \
   activate=True \
 --copy jtnipyutil /opt/miniconda-latest/envs/py36/lib/python3.6/site-packages/jtnipyutil
