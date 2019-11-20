@@ -61,7 +61,11 @@ model_wf.inputs.inputspec.FILM_threshold = 1 # Threshold for FILMGLS.  1000: p<=
 model_wf.inputs.inputspec.hpf_cutoff = 128.
 model_wf.inputs.inputspec.params = ['belief_r1', 'photo_r1', 'belief_r2', 'photo_r2'] # parameter to model from task file.
 model_wf.inputs.inputspec.contrasts = [['belief>photo', 'T', ['belief_r1', 'photo_r1', 'belief_r2', 'photo_r2'], [1, -1, 1, -1]]]
-model_wf.inputs.inputspec.bases = {'dgamma':{'derivs': False}} # For more options, see Level1Design at https://nipype.readthedocs.io/en/latest/interfaces/generated/interfaces.fsl/model.html
+# [name of contrast, contrast test (e.g. T-test), [list of parameters in contrast], [weight of each parameter in contrast]]
+# e.g. two contrast two conditons:
+    # ['Instructions_>_No_speech', 'T', ['Instructions', 'No_speech'], [1, -1]]
+model_wf.inputs.inputspec.bases = {'dgamma':{'derivs': False}} # Base function for hemodynamic model. dgamma  = double gamma.
+# For more options, see Level1Design at https://nipype.readthedocs.io/en/latest/interfaces/generated/interfaces.fsl/model.html
 model_wf.inputs.inputspec.model_serial_correlations = True # Include Pre-whitening, deals with autocorrelation
 model_wf.inputs.inputspec.sinker_subs = sinker_subs
 model_wf.inputs.inputspec.bold_template = {'bold': os.path.join(workdir, 'sub-*_task-beliefphoto_space-MNI152NLin2009cAsym_desc-preproc_bold.nii.gz')}
