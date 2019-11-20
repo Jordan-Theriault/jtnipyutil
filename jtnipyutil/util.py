@@ -179,7 +179,6 @@ def fit_mask(mask_file, ref_file, spline = 0, work_dir = '', out_format = 'file'
         out_mask.header['pixdim'] = ref.header['pixdim']
         out_mask.header['cal_max'] = np.max(data) # adjust min and max header info.
         out_mask.header['cal_min'] = np.min(data)
-        out_mask = os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz')
         nib.save(out_mask, os.path.join(work_dir, mask_name + '_spline'+str(spline)+'_fit.nii.gz'))
     else:
         assert (out_format == 'array'), 'out_format is neither file, or array.'
