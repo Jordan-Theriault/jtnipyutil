@@ -143,7 +143,17 @@ def create_lvl2tfce_wf(mask=False):
 
     ################## Fit mask, if given 2 design.
     if mask:
-        from jtnipyutil.util import fit_mask
+        def fit_mask(mask_file, ref_file):
+            from nilearn.image import resample_img
+            import nibabel as nib
+            import os
+            out_file = resample_img(nib.load(mask_file),
+                                   target_affine=nib.load(ref_file).affine,
+                                   target_shape=nib.load(ref_file).shape[0:3],
+                                   interpolation='nearest')
+            nib.save(out_file, os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz'))
+            out_mask = os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz')
+            return out_mask
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
@@ -356,6 +366,9 @@ def create_lvl1pipe_wf(options):
                 full_model_wf = pe.Workflow(name='full_model_wf')
                 full_model_wf.connect([(infosource, model_wf, [('subject_id', 'inputspec.subject_id')])])
                 full_model_wf.run()
+        amplitudes [string]:
+            Column name in events.tsv file, naming parametric amplitudes to apply to condtion contrasts.
+                e.g. 'RT'
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
@@ -389,6 +402,7 @@ def create_lvl1pipe_wf(options):
                 'subject_id',
                 'fwhm',
                 'proj_name',
+                'amplitudes',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
@@ -407,7 +421,10 @@ def create_lvl1pipe_wf(options):
         for file in temp_list: # ensure no duplicate entries.
             if file not in out_list:
                 out_list.append(file)
-        assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. either one file, or multiple files returned.'
+        if len(out_list) == 0:
+            assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. 0 files were returned.'
+        if len(out_list) > 1:
+            assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. Multiple files returned.'
         out_file = out_list[0]
         return out_file
 
@@ -444,7 +461,18 @@ def create_lvl1pipe_wf(options):
                                 name='mod_gmmask')
         # mod_gmmask.inputs.in_file = # from get_gmmask
         # mod_gmmask.inputs.args = from inputspec
-        from jtnipyutil.util import fit_mask
+        def fit_mask(mask_file, ref_file):
+            from nilearn.image import resample_img
+            import nibabel as nib
+            import os
+            out_file = resample_img(nib.load(mask_file),
+                                   target_affine=nib.load(ref_file).affine,
+                                   target_shape=nib.load(ref_file).shape[0:3],
+                                   interpolation='nearest')
+            nib.save(out_file, os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz'))
+            out_mask = os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz')
+            return out_mask
+
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
@@ -515,7 +543,7 @@ def create_lvl1pipe_wf(options):
     get_confounds.inputs.options = options
 
     ################## Create bunch to run FSL first level model.
-    def get_subj_info(task_file, design_col, confounds, params):
+    def get_subj_info(task_file, design_col, confounds, params, amplitudes=None):
         # Makes a Bunch, giving all necessary data about conditions, onsets, and durations to
         # FSL first level model. Needs a task file to run.
         from nipype.interfaces.base import Bunch
@@ -524,17 +552,21 @@ def create_lvl1pipe_wf(options):
         output = []
         tf = task_file
         df = pd.DataFrame(pd.read_csv(tf, sep='\t', parse_dates=False))
+        if amplitudes:
+            amp = df[amplitudes] - df[amplitudes].mean(skipna=True) # mean center, ignoring NaN.
+            amp[np.isnan(amp)] = 0 # replace any NaN with 0.
+            amplitudes = [list(amp[df[design_col] == f]) for f in params]
         output = Bunch(conditions= params,
                            onsets=[list(df[df[design_col] == f].onset) for f in params],
-                           durations=[list(set(df[df[design_col] == f].duration)) for f in params],
-                           amplitudes=None,
+                           durations=[list(df[df[design_col] == f].duration) for f in params],
+                           amplitudes=amplitudes,
                            tmod=None,
                            pmod=None,
                            regressor_names=confounds.columns.values,
                            regressors=confounds.T.values.tolist()) # movement regressors added here. List of lists.
         return output
 
-    make_bunch = pe.Node(Function(input_names=['task_file', 'design_col', 'confounds', 'params'],
+    make_bunch = pe.Node(Function(input_names=['task_file', 'design_col', 'confounds', 'params', 'amplitudes'],
                                  output_names=['subject_info'],
                                   function=get_subj_info),
                          name='make_bunch')
@@ -542,6 +574,7 @@ def create_lvl1pipe_wf(options):
     # make_bunch.inputs.confounds =  # From get_confounds
     # make_bunch.inputs.design_col =  # From inputspec
     # make_bunch.inputs.params =  # From inputspec
+    # make_bunch.inputs.amplitudes = # From inputspec
 
     def mk_outdir(output_dir, options, proj_name):
         import os
@@ -590,7 +623,7 @@ def create_lvl1pipe_wf(options):
     specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
     specify_model.inputs.input_units = 'secs'
     # specify_model.functional_runs # From maskBold, despike, or smooth_wf
-    # specify_model.subject_info # From subject_info
+    # specify_model.subject_info # From make_bunch.outputs.subject_info
     # specify_model.high_pass_filter_cutoff # From inputspec
     # specify_model.time_repetition # From inputspec
 
@@ -646,7 +679,8 @@ def create_lvl1pipe_wf(options):
                                      ('noise_regressors', 'noise_regressors'),
                                      ('TR', 'TR')]),
         (inputspec, make_bunch, [('design_col', 'design_col'),
-                                  ('params', 'params')]),
+                                  ('params', 'params'),
+                                  ('amplitudes', 'amplitudes')]),
         (inputspec, make_outdir, [('output_dir', 'output_dir'),
                                   ('proj_name', 'proj_name')]),
         (inputspec, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
