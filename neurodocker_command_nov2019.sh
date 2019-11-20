@@ -13,7 +13,7 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
 --miniconda create_env=py36 \
   conda_install="python=3.6 jupyter jupyterlab jupyter_contrib_nbextensions
                  traits pandas matplotlib scikit-learn==0.20.3 seaborn" \
-  pip_install="https://github.com/nipy/nipype/tarball/master
+  pip_install="https://github.com/nipy/nipype/tarball/1.2.3
                https://github.com/INCF/pybids/tarball/0.9.4
                nltools nilearn datalad[full] nipy duecredit niwidgets
                mne deepdish hypertools ipywidgets pynv six nibabel joblib==0.11
