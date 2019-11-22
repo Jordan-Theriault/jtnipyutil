@@ -1,4 +1,4 @@
-def get_cortical_thickness(subj, data_dir, work_dir, space=''):
+def get_cortical_depth(subj, data_dir, work_dir, space=''):
     import nighres
     import nibabel as nib
     import numpy as np
@@ -38,4 +38,4 @@ subj = os.environ['SUBJ']
 data_dir = '/scratch/'+os.environ['USER']+'/'+os.environ['SUBJ']+'/'+os.environ['PROJNAME']+'/BIDS_fmriprep'
 work_dir = '/scratch/'+os.environ['USER']+'/'+os.environ['SUBJ']+'/'+os.environ['PROJNAME']+'/nighres'
 
-get_cortical_thickness(subj, data_dir, work_dir, space=os.environ['SPACE'])
+get_cortical_depth(subj, data_dir, work_dir, space=os.environ['SPACE'])
