@@ -6,7 +6,7 @@ chmod +x ./DiReCT_cortical_thickness.sh
 chmod +x ./startup_DiReCT_cortical_thickness.sh
 chmod +x ./DiReCT_cortical_thickness.py
 
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 001 ./DiReCT_cortical_thickness.sh &
+
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 002 ./DiReCT_cortical_thickness.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 003 ./DiReCT_cortical_thickness.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 004 ./DiReCT_cortical_thickness.sh &
@@ -34,7 +34,7 @@ qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 033 ./DiReCT_cortical_thickn
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 034 ./DiReCT_cortical_thickness.sh &
 
 DONE
-
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 001 ./DiReCT_cortical_thickness.sh &
 
 
 
