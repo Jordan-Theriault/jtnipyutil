@@ -1,0 +1,13 @@
+ssh launchpad
+
+cd /autofs/cluster/iaslab/users/jtheriault/FSMAP/scripts/model
+
+chmod +x ./modelLvl2_stress/lvl2_model_startup.sh
+chmod +x ./modelLvl2_stress/lvl2_model.py
+chmod +x ./lvl2_model_wrapper.sh
+
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=120:00:00 -F 'nosmooth' ./lvl2_model_wrapper.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=120:00:00 -F '1.5' ./lvl2_model_wrapper.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=120:00:00 -F '6' ./lvl2_model_wrapper.sh &
+
+qsub -I -l nodes=1:ppn=8,vmem=56gb,walltime=120:00:00
