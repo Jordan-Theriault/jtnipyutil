@@ -594,3 +594,115 @@ def kmean_ROI(roi_dir, work_dir, target_roi_list, kmean_num, thresh=1.):
                     nib.save(roi_kdata_out, os.path.join(work_dir, prefix + '-' + str(k_out+1)+'.nii'))
                 # save full ROI.
                 nib.save(roi_data_out, os.path.join(work_dir, prefix + ".nii"))
+
+def BIDS_to_dm(F, sampling_freq, run_length, trial_col = 'trial_type', parametric_cols=None, sort=False, keep_separate=True, add_poly=None, unique_cols=[], fill_na=None, **kwargs):
+    """
+        **
+        Modified from nltools.file_reader.onsets_to_dm to accomodate BIDS files,
+        customize naming of the trial_type column, and allow parametric modulators.
+        **
+    This function can assist in reading in one or several BIDS-formated events files, specified in seconds and converting it to a Design Matrix organized as samples X Stimulus Classes.
+    Onsets files **must** be organized with columns in the following format:
+        1) 'onset, duration, trial_type'
+
+    This can handle multiple runs being given at once (if F is a list), and by default uses separate contrasts for each run.
+
+    Args:
+        F (filepath/DataFrame/list): path to file, pandas dataframe, or list of files or pandas dataframes
+        TR (float): TR of run.
+        run_length (int): number of TRs in the run these onsets came from
+        trial_col (string): which column should be used to specify stimuli/trials?
+        parametric_cols (list of lists of strings):
+        e.g. ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+             ['condition2', 'paramatric2', 'cent', 'norm']
+             in each entry:
+                 entry 1 is a condition within the trial_col
+                 entry 2 is a column in the events folder referenced by F.
+                 entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                 entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+             The condition column specified by entry 1 will be multiplied by the
+             parametric weighting specified by entry 2, scaled/centered as specified, then
+            appended to the design matrix.
+        sort (bool, optional): whether to sort the columns of the resulting
+                                design matrix alphabetically; defaults to
+                                False
+        keep_separate (bool): whether to seperate polynomial columns if reading a list of files and using the addpoly option
+        addpoly (int, optional: what order polynomial terms to add as new columns (e.g. 0 for intercept, 1 for linear trend and intercept, etc); defaults to None
+        unique_cols (list): additional columns to keep seperate across files (e.g. spikes)
+        fill_nam (str/int/float): what value fill NaNs in with if reading in a list of files
+        kwargs: additional inputs to pandas.read_csv
+    Returns:
+        Design_Matrix class
+    """
+    import pandas as pd
+    import numpy as np
+    import six
+    from nltools.data import Design_Matrix
+    from sklearn.preprocessing import scale
+    import warnings
+
+    if not isinstance(F, list):
+        F = [F]
+    out = []
+    sampling_freq = 1/TR
+
+    for f in F: ## Loading event files.
+        if isinstance(f, six.string_types): # load if file.
+            if f.split('.')[-1] == 'tsv':
+                df = pd.read_csv(f, **kwargs, sep = '\t') # if .tsv, load with tab separation.
+            else:
+                df = pd.read_csv(f, **kwargs) # TODO, replace in final code.
+        elif isinstance(f, pd.core.frame.DataFrame): #copy if dataframe.
+            df = f.copy()
+        else:
+            raise TypeError("Input needs to be file path or pandas dataframe!")
+        # Set onset to closest prior TR.
+        df['onset'] = df['onset'].apply(lambda x: int(np.floor(x/TR)))
+        ### Build dummy codes for trial column
+        X = Design_Matrix(np.zeros([run_length,
+                                    len(df[trial_col].unique())]),
+                          columns=df[trial_col].unique(),
+                          sampling_freq=sampling_freq)
+        for i, row in df.iterrows(): # for each entry in the .tsv file, mark a contrast for the duration in the design matrix.
+            dur = np.ceil(row['duration']/TR) # round duration to ceiling.
+            X.loc[row['onset']-1:row['onset']+dur-1, row[trial_col]] = 1
+        if sort:
+            X = X.reindex(sorted(X.columns), axis=1) # sort columns.
+        ## Parametric modulation, if necessary.
+        if parametric_cols:
+            par_names = [var[0]+'_'+var[1] for var in parametric_cols] # combine parametric_col indicators to generate new column names.
+            XP = Design_Matrix(np.zeros([run_length,
+                                         len(par_names)]),
+                               columns=par_names,
+                               sampling_freq=sampling_freq)
+            for idx, cond_par in enumerate(parametric_cols):
+                cond = cond_par[0] # get condition to parametrically modulate
+                par = cond_par[1] # get name of parametric modulator
+                print('modulating conditon', cond, 'by parametric modulator', par)
+                if cond_par[2] == 'cent':
+                    with_mean=True
+                elif cond_par[2] == 'no_cent':
+                    with_mean=False
+                if cond_par[3] == 'norm':
+                    with_std = True
+                elif cond_par[3] == 'no_norm':
+                    with_std = False
+                df[par_names[idx]] = scale(df[par], with_mean=with_mean, with_std=with_std) # scale/center the parametric modulatory
+                for i, row in df.iterrows():
+                    if row[trial_col] == cond:
+                        dur = np.ceil(row['duration']/TR) # round duration to ceiling.
+                        if np.isnan(row[par]): # check for missing data.
+                            print('NaN found in parameter', par, 'at onset:', row['onset'])
+                            XP.loc[row['onset']-1:row['onset']+dur-1] = 0 # remove all data within missing area
+                        else:
+                            XP.loc[row['onset']-1:row['onset']+dur-1, par_names[idx]] = 1*row[par_names[idx]] # multiple dummy code by parametric modulator.
+            X = Design_Matrix(pd.concat([X, XP], axis=1), sampling_freq=sampling_freq) # join parametrc variables to the design.
+            out.append(X) # append to other runs, if multiple runs.
+    if len(out) > 1:
+        out_dm = out[0].append(out[1:], keep_separate=keep_separate, add_poly=add_poly, unique_cols=unique_cols, fill_na=fill_na)
+    else:
+        if add_poly is not None:
+            out_dm = out[0].add_poly(add_poly)
+        else:
+            out_dm = out[0]
+    return out_dm
