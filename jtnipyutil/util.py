@@ -613,8 +613,8 @@ def BIDS_to_dm(F, sampling_freq, run_length, trial_col = 'trial_type', parametri
         run_length (int): number of TRs in the run these onsets came from
         trial_col (string): which column should be used to specify stimuli/trials?
         parametric_cols (list of lists of strings):
-        e.g. ['condition1', 'parametric1', 'no_cent', 'no_norm'],
-             ['condition2', 'paramatric2', 'cent', 'norm']
+        e.g. [['condition1', 'parametric1', 'no_cent', 'no_norm'],
+             ['condition2', 'paramatric2', 'cent', 'norm']]
              in each entry:
                  entry 1 is a condition within the trial_col
                  entry 2 is a column in the events folder referenced by F.
@@ -706,3 +706,147 @@ def BIDS_to_dm(F, sampling_freq, run_length, trial_col = 'trial_type', parametri
         else:
             out_dm = out[0]
     return out_dm
+
+def get_subj_info(task_file, design_col, confounds, conditions):
+    '''
+    Makes a Bunch, giving all necessary data about conditions, onsets, and durations to
+        FSL first level model. Needs a task file to run.
+    Originally used in model.create_lvl1pipe_wf pipeline, but copied here.
+
+    Inputs:
+        task file [string], path to the subject events.tsv file, as per BIDS format.
+        design_col [string], column name within task file, identifying event conditions to model.
+        confounds [pandas dataframe], pd.df of confounds, gathered from get_confounds node.
+        conditions [list],
+            e.g. ['condition1',
+                  'condition2',
+                 ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+                 ['condition2', 'paramatric2', 'cent', 'norm']]
+                 each string entry (e.g. 'condition1') specifies a event condition in the design_col column.
+                 each list entry includes 4 strings:
+                     entry 1 is a condition within the design_col column
+                     entry 2 is a column in the events folder, which will be used for parametric weightings.
+                     entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                     entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+             Onsets and durations will be taken from corresponding values for entry 1
+             parametric weighting specified by entry 2, scaled/centered as specified, then
+            appended to the design matrix.
+    '''
+    from nipype.interfaces.base import Bunch
+    import pandas as pd
+    import numpy as np
+    from sklearn.preprocessing import scale
+
+    onsets = []
+    durations = []
+    amplitudes = []
+    df = pd.read_csv(task_file, sep='\t', parse_dates=False)
+    for idx, cond in enumerate(conditions):
+        if isinstance(cond, list):
+            if cond[2] == 'no_cent': # determine whether to center/scale
+                c = False
+            elif cond[2] == 'cent':
+                c = True
+            if cond[3] == 'no_norm':
+                n = False
+            elif cond[3] == 'norm':
+                n = True
+            # grab parametric terms.
+            onsets.append(list(df[df[design_col] == cond[0]].onset))
+            durations.append(list(df[df[design_col] == cond[0]].duration))
+            amp_temp = list(scale(df[df[design_col] == cond[0]][cond[1]].tolist(),
+                               with_mean=c, with_std=n)) # scale
+            amp_temp = pd.Series(amp_temp, dtype=object).fillna(0).tolist() # fill na
+            amplitudes.append(amp_temp) # append
+            conditions[idx] = cond[0]+'_'+cond[1] # combine condition/parametric names and replace.
+        elif isinstance(cond, str):
+            onsets.append(list(df[df[design_col] == cond].onset))
+            durations.append(list(df[df[design_col] == cond].duration))
+            # dummy code 1's for non-parametric conditions.
+            amplitudes.append(list(np.repeat(1, len(df[df[design_col] == cond].onset))))
+        else:
+            print('cannot identify condition:', cond)
+    #             return None
+    output = Bunch(conditions= conditions,
+                       onsets=onsets,
+                       durations=durations,
+                       amplitudes=amplitudes,
+                       tmod=None,
+                       pmod=None,
+                       regressor_names=confounds.columns.values,
+                       regressors=confounds.T.values.tolist()) # movement regressors added here. List of lists.
+    return output
+
+def get_confounds(confound_file, noise_transforms, noise_regressors, TR, options):
+    '''
+    Gathers confounds (and transformations) into a pandas dataframe.
+    Originally used in model.create_lvl1pipe_wf pipeline, but copied here.
+
+    Input [Mandatory]:
+        confound_file [string]: path to confound.tsv file, given by fmriprep.
+        noise_transforms [list of strings]:
+            noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
+            e.g. model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+        noise_regressors [list of strings]:
+            column names in confounds.tsv, specifying desired noise regressors for model.
+            IF noise_transforms are to be applied to a regressor, add '*' to the name.
+            e.g. model_wf.inputs.inputspec.noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+        TR [float]:
+            Scanner TR value in seconds.
+        options: dictionary with the following entries
+            remove_steadystateoutlier [boolean]:
+                Should always be True. Remove steady state outliers from bold timecourse, specified in fmriprep confounds file.
+            ICA_AROMA [boolean]:
+                Use AROMA error components, from fmriprep confounds file.
+            poly_trend [integer. Use None to skip]:
+                If given, polynomial trends will be added to run confounds, up to the order of the integer
+                e.g. "0", gives an intercept, "1" gives intercept + linear trend,
+                "2" gives intercept + linear trend + quadratic.
+            dct_basis [integer. Use None to skip]:
+                If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
+                    Adds unit scaled cosine basis functions to Design_Matrix columns,
+                    based on spm-style discrete cosine transform for use in
+                    high-pass filtering. Does not add intercept/constant.
+    '''
+    import numpy as np
+    import pandas as pd
+    from nltools.data import Design_Matrix
+
+    df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
+    transfrm_list = []
+    for idx, entry in enumerate(noise_regressors): # get entries marked with *, indicating they should be transformed.
+        if '*' in entry:
+            transfrm_list.append(entry.replace('*', '')) # add entry to transformation list if it has *.
+            noise_regressors[idx] = entry.replace('*', '')
+
+    confounds = df_cf[noise_regressors]
+    transfrmd_cnfds = df_cf[transfrm_list] # for transforms
+    TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
+    if 'quad' in noise_transforms:
+        quad = np.square(transfrmd_cnfds)
+        confounds = confounds.join(quad, rsuffix='_quad')
+    if 'tderiv' in noise_transforms:
+        tderiv = pd.DataFrame(pd.Series(np.gradient(transfrmd_cnfds[col]), TR_time)
+                              for col in transfrmd_cnfds).T
+        tderiv.columns = transfrmd_cnfds.columns
+        tderiv.index = confounds.index
+        confounds = confounds.join(tderiv, rsuffix='_tderiv')
+    if 'quadtderiv' in noise_transforms:
+        quadtderiv = np.square(tderiv)
+        confounds = confounds.join(quadtderiv, rsuffix='_quadtderiv')
+    if options['remove_steadystateoutlier']:
+        if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]].empty:
+            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]])
+        elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]].empty:
+            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]]) # old syntax
+    if options['ICA_AROMA']:
+        if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]].empty:
+            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]])
+        elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]].empty:
+            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]]) # old syntax
+    confounds = Design_Matrix(confounds, sampling_freq=1/TR)
+    if isinstance(options['poly_trend'], int):
+        confounds = confounds.add_poly(order = options['poly_trend'])
+    if isinstance(options['dct_basis'], int):
+        confounds = confounds.add_dct_basis(duration=options['dct_basis'])
+    return confounds
