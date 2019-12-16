@@ -248,6 +248,15 @@ def create_lvl1pipe_wf(options):
                 If False, then components related to contrasts and p values are removed from   nipype.workflows.fmri.fsl.estimate.create_modelfit_workflow()
             keep_resid [boolean]:
                 If False, then only sum of squares residuals will be outputted. If True, then timecourse residuals kept.
+            poly_trend [integer. Use None to skip]:
+                If given, polynomial trends will be added to run confounds, up to the order of the integer
+                e.g. "0", gives an intercept, "1" gives intercept + linear trend,
+                "2" gives intercept + linear trend + quadratic.
+            dct_basis [integer. Use None to skip]:
+                If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
+                    Adds unit scaled cosine basis functions to Design_Matrix columns,
+                    based on spm-style discrete cosine transform for use in
+                    high-pass filtering. Does not add intercept/constant.
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -265,7 +274,24 @@ def create_lvl1pipe_wf(options):
             e.g. model_wf.inputs.inputspec.design_col = 'trial_type'
         params [list fo strings]:
             values within events.tsv design_col that correspond to events to be modeled.
-            e.g. model_wf.inputs.inputspec.params = ['Instructions', 'Speech_prep', 'No_speech']
+            e.g.  ['Instructions', 'Speech_prep', 'No_speech']
+        conditions [list, of either strings or lists],
+            each condition must be a string within the events.tsv design_col.
+            These conditions correspond to event conditions to be modeled.
+            Give a list, instead of a string, to model parametric terms.
+            These parametric terms give a event condition, then a parametric term, which is another column in the events.tsv file.
+            The parametric term can be centered and normed using entries 3 and 4 in the list.
+            e.g. model_wf.inputs.inputspec.params = ['condition1',
+                                                     'condition2',
+                                                    ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+                                                    ['condition2', 'paramatric2', 'cent', 'norm']]
+                     entry 1 is a condition within the design_col column
+                     entry 2 is a column in the events folder, which will be used for parametric weightings.
+                     entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                     entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+             Onsets and durations will be taken from corresponding values for entry 1
+             parametric weighting specified by entry 2, scaled/centered as specified, then
+             appended to the design matrix.
         contrasts [list of lists]:
             Specifies contrasts to be performed. using params selected above.
             e.g. model_wf.inputs.inputspec.contrasts =
@@ -366,9 +392,6 @@ def create_lvl1pipe_wf(options):
                 full_model_wf = pe.Workflow(name='full_model_wf')
                 full_model_wf.connect([(infosource, model_wf, [('subject_id', 'inputspec.subject_id')])])
                 full_model_wf.run()
-        amplitudes [string]:
-            Column name in events.tsv file, naming parametric amplitudes to apply to condtion contrasts.
-                e.g. 'RT'
     '''
     import nipype.pipeline.engine as pe # pypeline engine
     import nipype.interfaces.fsl as fsl
@@ -388,7 +411,7 @@ def create_lvl1pipe_wf(options):
                 'TR', # in seconds.
                 'FILM_threshold',
                 'hpf_cutoff',
-                'params',
+                'conditions',
                 'contrasts',
                 'bases',
                 'model_serial_correlations',
@@ -402,7 +425,6 @@ def create_lvl1pipe_wf(options):
                 'subject_id',
                 'fwhm',
                 'proj_name',
-                'amplitudes',
                 ],
         mandatory_inputs=False),
                  name='inputspec')
@@ -481,21 +503,40 @@ def create_lvl1pipe_wf(options):
 
     ################## Setup confounds
     def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
-        # # Add time derivs, quadratic terms, and quad time derives if requested.
+        '''
+        Gathers confounds (and transformations) into a pandas dataframe.
+
+        Input [Mandatory]:
+            confound_file [string]: path to confound.tsv file, given by fmriprep.
+            noise_transforms [list of strings]:
+                noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
+                e.g. model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+            noise_regressors [list of strings]:
+                column names in confounds.tsv, specifying desired noise regressors for model.
+                IF noise_transforms are to be applied to a regressor, add '*' to the name.
+                e.g. model_wf.inputs.inputspec.noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+            TR [float]:
+                Scanner TR value in seconds.
+            options: dictionary with the following entries
+                remove_steadystateoutlier [boolean]:
+                    Should always be True. Remove steady state outliers from bold timecourse, specified in fmriprep confounds file.
+                ICA_AROMA [boolean]:
+                    Use AROMA error components, from fmriprep confounds file.
+                poly_trend [integer. Use None to skip]:
+                    If given, polynomial trends will be added to run confounds, up to the order of the integer
+                    e.g. "0", gives an intercept, "1" gives intercept + linear trend,
+                    "2" gives intercept + linear trend + quadratic.
+                dct_basis [integer. Use None to skip]:
+                    If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
+                        Adds unit scaled cosine basis functions to Design_Matrix columns,
+                        based on spm-style discrete cosine transform for use in
+                        high-pass filtering. Does not add intercept/constant.
+        '''
         import numpy as np
         import pandas as pd
+        from nltools.data import Design_Matrix
+
         df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
-        if len(df_cf.columns[df_cf.columns.to_series().str.contains('_r')]) > 0: # if multiple runs were merged then fix the noise_regresor list.
-            noise_regressors_r = []
-            for run in range(1, 1000):
-                run_sufx = '_r' + str(run)
-                if len(df_cf.columns[df_cf.columns.to_series().str.contains(run_sufx)]) == 0: # if no run for current loop found, break and proceed.
-                    break
-                noise_regressors_r.append([s + run_sufx for s in noise_regressors])
-            noise_regressors = []
-            for sublist in noise_regressors_r:
-                for item in sublist:
-                    noise_regressors.append(item)
         transfrm_list = []
         for idx, entry in enumerate(noise_regressors): # get entries marked with *, indicating they should be transformed.
             if '*' in entry:
@@ -527,8 +568,11 @@ def create_lvl1pipe_wf(options):
                 confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]])
             elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]].empty:
                 confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]]) # old syntax
-        if len(df_cf.columns[df_cf.columns.to_series().str.contains('run_')]) > 0: # get runs if there are any, assuming combine_runs was used.
-            confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('run_')]])
+        confounds = Design_Matrix(confounds, sampling_freq=1/TR)
+        if isinstance(options['poly_trend'], int):
+            confounds = confounds.add_poly(order = options['poly_trend'])
+        if isinstance(options['dct_basis'], int):
+            confounds = confounds.add_dct_basis(duration=options['dct_basis'])
         return confounds
 
     get_confounds = pe.Node(Function(input_names=['confound_file', 'noise_transforms',
@@ -543,22 +587,68 @@ def create_lvl1pipe_wf(options):
     get_confounds.inputs.options = options
 
     ################## Create bunch to run FSL first level model.
-    def get_subj_info(task_file, design_col, confounds, params, amplitudes=None):
-        # Makes a Bunch, giving all necessary data about conditions, onsets, and durations to
-        # FSL first level model. Needs a task file to run.
+    def get_subj_info(task_file, design_col, confounds, conditions):
+        '''
+        Makes a Bunch, giving all necessary data about conditions, onsets, and durations to
+            FSL first level model. Needs a task file to run.
+
+        Inputs:
+            task file [string], path to the subject events.tsv file, as per BIDS format.
+            design_col [string], column name within task file, identifying event conditions to model.
+            confounds [pandas dataframe], pd.df of confounds, gathered from get_confounds node.
+            conditions [list],
+                e.g. ['condition1',
+                      'condition2',
+                     ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+                     ['condition2', 'paramatric2', 'cent', 'norm']]
+                     each string entry (e.g. 'condition1') specifies a event condition in the design_col column.
+                     each list entry includes 4 strings:
+                         entry 1 is a condition within the design_col column
+                         entry 2 is a column in the events folder, which will be used for parametric weightings.
+                         entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                         entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+                 Onsets and durations will be taken from corresponding values for entry 1
+                 parametric weighting specified by entry 2, scaled/centered as specified, then
+                appended to the design matrix.
+        '''
         from nipype.interfaces.base import Bunch
         import pandas as pd
         import numpy as np
-        output = []
-        tf = task_file
-        df = pd.DataFrame(pd.read_csv(tf, sep='\t', parse_dates=False))
-        if amplitudes:
-            amp = df[amplitudes] - df[amplitudes].mean(skipna=True) # mean center, ignoring NaN.
-            amp[np.isnan(amp)] = 0 # replace any NaN with 0.
-            amplitudes = [list(amp[df[design_col] == f]) for f in params]
-        output = Bunch(conditions= params,
-                           onsets=[list(df[df[design_col] == f].onset) for f in params],
-                           durations=[list(df[df[design_col] == f].duration) for f in params],
+        from sklearn.preprocessing import scale
+
+        onsets = []
+        durations = []
+        amplitudes = []
+        df = pd.read_csv(task_file, sep='\t', parse_dates=False)
+        for idx, cond in enumerate(conditions):
+            if isinstance(cond, list):
+                if cond[2] == 'no_cent': # determine whether to center/scale
+                    c = False
+                elif cond[2] == 'cent':
+                    c = True
+                if cond[3] == 'no_norm':
+                    n = False
+                elif cond[3] == 'norm':
+                    n = True
+                # grab parametric terms.
+                onsets.append(list(df[df[design_col] == cond[0]].onset))
+                durations.append(list(df[df[design_col] == cond[0]].duration))
+                amp_temp = list(scale(df[df[design_col] == cond[0]][cond[1]].tolist(),
+                                   with_mean=c, with_std=n)) # scale
+                amp_temp = pd.Series(amp_temp, dtype=object).fillna(0).tolist() # fill na
+                amplitudes.append(amp_temp) # append
+                conditions[idx] = cond[0]+'_'+cond[1] # combine condition/parametric names and replace.
+            elif isinstance(cond, str):
+                onsets.append(list(df[df[design_col] == cond].onset))
+                durations.append(list(df[df[design_col] == cond].duration))
+                # dummy code 1's for non-parametric conditions.
+                amplitudes.append(list(np.repeat(1, len(df[df[design_col] == cond].onset))))
+            else:
+                print('cannot identify condition:', cond)
+        #             return None
+        output = Bunch(conditions= conditions,
+                           onsets=onsets,
+                           durations=durations,
                            amplitudes=amplitudes,
                            tmod=None,
                            pmod=None,
@@ -566,15 +656,14 @@ def create_lvl1pipe_wf(options):
                            regressors=confounds.T.values.tolist()) # movement regressors added here. List of lists.
         return output
 
-    make_bunch = pe.Node(Function(input_names=['task_file', 'design_col', 'confounds', 'params', 'amplitudes'],
+    make_bunch = pe.Node(Function(input_names=['task_file', 'design_col', 'confounds', 'conditions'],
                                  output_names=['subject_info'],
                                   function=get_subj_info),
                          name='make_bunch')
     # make_bunch.inputs.task_file =  # From get_task
     # make_bunch.inputs.confounds =  # From get_confounds
     # make_bunch.inputs.design_col =  # From inputspec
-    # make_bunch.inputs.params =  # From inputspec
-    # make_bunch.inputs.amplitudes = # From inputspec
+    # make_bunch.inputs.conditions =  # From inputspec
 
     def mk_outdir(output_dir, options, proj_name):
         import os
@@ -679,8 +768,7 @@ def create_lvl1pipe_wf(options):
                                      ('noise_regressors', 'noise_regressors'),
                                      ('TR', 'TR')]),
         (inputspec, make_bunch, [('design_col', 'design_col'),
-                                  ('params', 'params'),
-                                  ('amplitudes', 'amplitudes')]),
+                                  ('conditions', 'conditions')]),
         (inputspec, make_outdir, [('output_dir', 'output_dir'),
                                   ('proj_name', 'proj_name')]),
         (inputspec, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
