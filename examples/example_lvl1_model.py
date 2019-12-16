@@ -43,12 +43,16 @@ combine_runs(subj = sys.argv[1],
 #                ('pe2.nii.gz','pe2_photo.nii.gz')]
 sinker_subs = []
 ########## CREATE MODEL AND SET INPUTSPEC ########################################
-options = {'remove_steadystateoutlier': True,
-           'smooth': True,
-           'censoring': 'despike',
-           'ICA_AROMA': False,
-          'run_contrasts': True,
-          'keep_resid': False}
+options = {
+    'remove_steadystateoutlier': True,
+    'smooth': True,
+    'censoring': 'despike',
+    'ICA_AROMA': False,
+    'poly_trend': 1,
+    'dct_basis': None,
+    'run_contrasts': True,
+    'keep_resid': False
+    }
 
 model_wf = create_lvl1pipe_wf(options)
 model_wf.inputs.inputspec.input_dir = "/scratch/data/"
@@ -59,7 +63,7 @@ model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
 model_wf.inputs.inputspec.TR = 2.  # In seconds, ensure this is a float
 model_wf.inputs.inputspec.FILM_threshold = 1 # Threshold for FILMGLS.  1000: p<=.001, 1: p <=1, i.e. unthresholded.
 model_wf.inputs.inputspec.hpf_cutoff = 128.
-model_wf.inputs.inputspec.params = ['belief_r1', 'photo_r1', 'belief_r2', 'photo_r2'] # parameter to model from task file.
+model_wf.inputs.inputspec.conditions = ['belief_r1', 'photo_r1', 'belief_r2', 'photo_r2'] # parameter to model from task file.
 model_wf.inputs.inputspec.contrasts = [['belief>photo', 'T', ['belief_r1', 'photo_r1', 'belief_r2', 'photo_r2'], [1, -1, 1, -1]]]
 # [name of contrast, contrast test (e.g. T-test), [list of parameters in contrast], [weight of each parameter in contrast]]
 # e.g. two contrast two conditons:
