@@ -3,7 +3,7 @@ setenv DATA /autofs/cluster/iaslab/FSMAP/FSMAP_data
 setenv SCRIPTS /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/scripts
 setenv OUTPUT /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/depth
 setenv SUBJ sub-$1
-setenv PROJNAME nighres_cort_thick
+setenv PROJNAME nighres_cort_depth
 setenv TASK rest
 setenv SPACE MNI152NLin2009cAsym
 setenv IMAGE /autofs/cluster/iaslab/users/jtheriault/singularity_images/nighres/nighres-2019-05-07-9ae9dfd9c326.simg
@@ -25,7 +25,7 @@ cd /scratch/$USER
 $SINGULARITY exec \
 --bind "/scratch:/scratch" \
 $IMAGE \
-/scratch/$USER/$SUBJ/$PROJNAME/work/scripts/startup_cortical_thickness.sh
+/scratch/$USER/$SUBJ/$PROJNAME/work/scripts/startup_cortical_depth.sh
 
 rsync -ra /scratch/$USER/$SUBJ/$PROJNAME/nighres/$SUBJ*depth* $OUTPUT/
 rsync -ra /scratch/$USER/$SUBJ/$PROJNAME/nighres/$SUBJ*dWM* $OUTPUT/

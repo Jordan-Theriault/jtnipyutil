@@ -6,6 +6,77 @@ chmod +x ./nighres_cortical_depth.sh
 chmod +x ./startup_cortical_depth.sh
 chmod +x ./cortical_depth.py
 
+
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 035 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 036 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 037 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 038 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 039 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 040 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 041 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 042 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 043 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 044 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 045 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 045 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 046 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 047 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 048 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 049 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 050 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 051 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 052 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 053 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 054 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 055 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 056 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 057 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 058 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 059 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 060 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 061 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 062 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 063 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 064 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 065 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 066 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 067 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 068 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 069 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 070 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 071 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 072 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 073 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 074 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 075 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 076 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 077 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 078 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 079 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 080 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 081 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 082 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 083 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 084 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 085 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 086 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 087 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 088 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 089 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 090 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 091 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 092 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 093 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 094 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 095 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 096 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 097 ./nighres_cortical_depth.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 098 ./nighres_cortical_depth.sh &
+
+
+## DONE
+
+
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 001 ./nighres_cortical_depth.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 002 ./nighres_cortical_depth.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 003 ./nighres_cortical_depth.sh &
@@ -32,9 +103,6 @@ qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 031 ./nighres_cortical_depth
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 032 ./nighres_cortical_depth.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 033 ./nighres_cortical_depth.sh &
 qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 034 ./nighres_cortical_depth.sh &
-
-DONE
-
 
 
 
