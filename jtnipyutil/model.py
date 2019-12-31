@@ -252,11 +252,13 @@ def create_lvl1pipe_wf(options):
                 If given, polynomial trends will be added to run confounds, up to the order of the integer
                 e.g. "0", gives an intercept, "1" gives intercept + linear trend,
                 "2" gives intercept + linear trend + quadratic.
+                DO NOT use in conjnuction with high pass filters.
             dct_basis [integer. Use None to skip]:
                 If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
                     Adds unit scaled cosine basis functions to Design_Matrix columns,
                     based on spm-style discrete cosine transform for use in
                     high-pass filtering. Does not add intercept/constant.
+                    DO NOT use in conjnuction with high pass filters.
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -313,7 +315,7 @@ def create_lvl1pipe_wf(options):
             Cutoff value for modeling threshold. 1000: p <.001; 1: p <=1, i.e. unthresholded.
             e.g. model_wf.inputs.inputspec.FILM_threshold = 1
         hpf_cutoff [float]:
-            high pass filter value.
+            high pass filter value. DO NOT USE THIS in conjunction with poly_trend or dct_basis.
             e.g. model_wf.inputs.inputspec.hpf_cutoff = 120.
         bases: (a dictionary with keys which are 'hrf' or 'fourier' or 'fourier_han' or 'gamma' or 'fir' and with values which are any value)
              dict {'name':{'basesparam1':val,...}}
@@ -570,9 +572,9 @@ def create_lvl1pipe_wf(options):
                 confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]]) # old syntax
         confounds = Design_Matrix(confounds, sampling_freq=1/TR)
         if isinstance(options['poly_trend'], int):
-            confounds = confounds.add_poly(order = options['poly_trend'])
+            confounds = confounds.add_poly(order = options['poly_trend']) # these do not play nice with high pass filters.
         if isinstance(options['dct_basis'], int):
-            confounds = confounds.add_dct_basis(duration=options['dct_basis'])
+            confounds = confounds.add_dct_basis(duration=options['dct_basis']) # these do not play nice with high pass filters.
         return confounds
 
     get_confounds = pe.Node(Function(input_names=['confound_file', 'noise_transforms',
