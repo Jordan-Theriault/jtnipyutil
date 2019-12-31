@@ -1,5 +1,4 @@
-def laminar_mask_roi_list(subj, depth_file, img_file, conf_file, work_dir, roi_dir, out_label,
-                          conf_names, detrend_tf):
+def laminar_mask_roi_list(subj, depth_file, img_file, conf_file, work_dir, roi_dir, out_label, conf_names, detrend_tf):
     import os, glob
     import numpy as np
     import pandas as pd
@@ -45,7 +44,6 @@ def laminar_mask_roi_list(subj, depth_file, img_file, conf_file, work_dir, roi_d
         img_masked = niftimask.transform(img_file, confounds=confound_list.values)
     else:
         img_masked = niftimask.transform(img_file)
-
 
     ######## Mask cortical depth by cortical depth.
     niftimask_depth = NiftiMasker(dtype='float32')
