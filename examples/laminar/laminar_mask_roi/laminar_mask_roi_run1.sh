@@ -8,7 +8,7 @@ setenv CONFOUND ${SUBJ}_task-${TASK}_bold_confounds.tsv
 setenv SINGULARITY /usr/bin/singularity
 setenv IMAGE /autofs/cluster/iaslab/users/jtheriault/singularity_images/nighres/nighres-2019-05-07-9ae9dfd9c326.simg
 
-setenv LAMINAR_DATA /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/
+setenv LAMINAR_DATA /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar
 setenv RAW_DATA /autofs/cluster/iaslab/FSMAP/FSMAP_data/BIDS_fmriprep/fmriprep/ses-01
 setenv SCRIPTS /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/scripts/laminar_mask_roi
 setenv OUTPUT /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/roi_data

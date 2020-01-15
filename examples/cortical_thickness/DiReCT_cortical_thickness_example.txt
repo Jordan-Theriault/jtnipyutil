@@ -6,35 +6,35 @@ chmod +x ./DiReCT_cortical_thickness.sh
 chmod +x ./startup_DiReCT_cortical_thickness.sh
 chmod +x ./DiReCT_cortical_thickness.py
 
-
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 002 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 003 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 004 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 005 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 006 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 007 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 008 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 009 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 010 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 011 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 012 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 013 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 018 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 019 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 020 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 021 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 022 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 023 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 024 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 025 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 026 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 031 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 032 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 033 ./DiReCT_cortical_thickness.sh &
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 034 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 001 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 002 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 003 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 004 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 005 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 006 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 007 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 008 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 009 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 010 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 011 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 012 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 013 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 018 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 019 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 020 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 021 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 022 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 023 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 024 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 025 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 026 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 031 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 032 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 033 ./DiReCT_cortical_thickness.sh &
+qsub -l nodes=1:ppn=8,vmem=56gb,walltime=8:00:00 -F 034 ./DiReCT_cortical_thickness.sh &
 
 DONE
-qsub -l nodes=1:ppn=8,vmem=56gb,walltime=4:00:00 -F 001 ./DiReCT_cortical_thickness.sh &
+
 
 
 

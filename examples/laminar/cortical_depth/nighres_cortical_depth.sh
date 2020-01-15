@@ -1,6 +1,6 @@
 #!/bin/tcsh
 setenv DATA /autofs/cluster/iaslab/FSMAP/FSMAP_data
-setenv SCRIPTS /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/scripts
+setenv SCRIPTS /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/scripts/cortical_depth
 setenv OUTPUT /autofs/cluster/iaslab/users/jtheriault/FSMAP/laminar/depth
 setenv SUBJ sub-$1
 setenv PROJNAME nighres_cort_depth
