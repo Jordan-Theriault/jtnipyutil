@@ -397,3 +397,111 @@ def get_cortical_thickness(subj, data_dir, work_dir, space=''):
         save_data=True,
         file_name=subj+space+'_depth',
         output_dir=work_dir)
+
+
+def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
+    '''
+    Grab PAG mask, 2nd level contrast, then unwrap the PAG along its length, producing a map of
+    left/right dorsal and ventral strips, and the dorsomedial strip.
+
+    PAG_file [string, path and file name]: Dartel template (e.g. Template_6) from jtnipyutil.fsmap.create_DARTEL_wf.
+        e.g. '/home/neuro/workdir/2019-12-04_PAG_lvl2/template/Template_6.nii')
+    con_file [string, path and file name]: beta-weight .nii.gz file from a level 2 contrast.
+        e.g. '/home/neuro/workdir/2019-12-04_PAG_lvl2/data/dartel/nosmooth/_contrast_2_speech_prep/randomise_raw_tstat1.nii.gz'
+    con_name [string]: name of contrast.
+        e.g. 'speech_prep'
+    out_dir [string, path]: output direction.
+        e.g. '/home/neuro/workdir/2019-12-04_PAG_lvl2/output'
+    thresh [float, default = .2]: probability threshold for PAG_file mask.
+    '''
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import AgglomerativeClustering
+    import nibabel as nib
+    import numpy as np
+    import os, glob
+    import matplotlib.pyplot as plt
+
+    def cart2pol(x, y, z):
+        import numpy as np
+        theta = np.arctan2(y, x)
+        rho = np.sqrt(x**2 + y**2)
+        z = z
+        return (theta, rho, z)
+
+    # make binary mask of PAG
+    roi_data = nib.load(roi).get_data()
+    roi_xyz = np.where(roi_data >= thresh) # grab coordinates within mask.
+    roi_data[np.where(roi_data < thresh)] = 0 # zero everything below the threshold
+    roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
+
+    # PCA into polar coordinates within PAG.
+    pca = PCA().fit(roi_xyz_2d) # First dim will be along the length of the PAG, as it carries the most variance.
+    pca_score = pca.transform(roi_xyz_2d)
+
+    # Transform to polar coordinates
+    theta, rho, z = cart2pol(pca_score[:,1]*-1, pca_score[:,2], pca_score[:,0]) # NOTE: # xdim flipped, to give dorsomedial at center, unzipping at ventromedial.
+    pag_degree = theta*180/np.pi
+
+    # Cluster intro strips.
+    agglomo_clust_degree_pag = AgglomerativeClustering(n_clusters = 5,
+                                                affinity='l1',
+                                                linkage='average').fit(np.array([pag_degree, z]).transpose())
+    # plot segmentation.
+    labdict = {'L-ventral':3,
+               'L-dorsal':1,
+               'dorsomedial':0,
+               'R-dorsal':2,
+               'R-ventral':4,
+               }
+    cdict = {'dorsomedial': 'teal',
+            'L-dorsal': 'royalblue',
+            'R-dorsal': 'salmon',
+            'L-ventral': 'darkred',
+            'R-ventral': 'blueviolet'}
+
+    # Create figure of slice through PAG
+    fig, ax = plt.subplots()
+    for lab in labdict:
+        ix = np.where(agglomo_clust_degree_pag.labels_ == labdict[lab])
+        ax.scatter(pca_score[ix,1], pca_score[ix,2], c=cdict[lab], label=lab, s=200, alpha=.6)
+    plt.legend(loc='upper right', fontsize ='small', bbox_to_anchor=(1.26,1.05))
+    plt.savefig(os.path.join(out_dir, 'PAG_slice.png'))
+    plt.clf()
+
+    # Create figure of PAG unrolled.
+    fig, ax = plt.subplots()
+    for lab in labdict:
+        ix = np.where(agglomo_clust_degree_pag.labels_ == labdict[lab])
+        ax.scatter(pag_degree[ix]*-1, z[ix], c=cdict[lab], label=lab, s=200, alpha=.6) # pag_degree flipped to put left PAG on left side of graph.
+    plt.legend(loc='upper right', fontsize ='small', bbox_to_anchor=(1.26,1.05))
+    plt.savefig(os.path.join(out_dir, 'PAG_unrolled.png'))
+    plt.clf()
+
+    # Get beta weights within PAG mask.
+    PAG_wholebrain = nib.load(con_file).get_data()
+    PAG_masked = PAG_wholebrain[np.where(roi_data >= thresh)]
+
+    # Create figure of contrast beta estimates within PAG mask.
+    plt.scatter(pag_degree*-1, z,c=PAG_masked, cmap=plt.cm.coolwarm, s=200, alpha=.6)
+    plt.colorbar()
+    plt.savefig(os.path.join(out_dir, con_name+'in_PAG_unrolled.png'))
+    plt.clf()
+
+    # Fill back in the kmeans labels into the original mask.
+    for lab in np.unique(agglomo_clust_degree_pag.labels_):
+        label_xyz = roi_xyz_2d[agglomo_clust_degree_pag.labels_ == lab]
+        x_coord = [label_xyz[:][coord][0] for coord in range(len(label_xyz))]
+        y_coord = [label_xyz[:][coord][1] for coord in range(len(label_xyz))]
+        z_coord = [label_xyz[:][coord][2] for coord in range(len(label_xyz))]
+        roi_data[x_coord, y_coord, z_coord] = lab+1
+    # save and output new PAG masks.
+    roi_data_out = nib.Nifti1Image(roi_data, nib.load(roi).affine, nib.load(roi).header)
+    prefix = roi.split('/')[-1].split('.nii')[0]+'_agglomCluster'
+    for k_out in range(5): # save separate kmean clusters.
+        roi_data_k = np.copy(roi_data)
+        roi_data_k[roi_data != k_out+1] = 0
+        roi_data_k[roi_data == k_out+1] = 1
+        roi_kdata_out = nib.Nifti1Image(roi_data_k, nib.load(roi).affine, nib.load(roi).header)
+        nib.save(roi_kdata_out, os.path.join(out_dir, prefix + '-' + str(k_out+1)+'.nii'))
+    # save full ROI.
+    nib.save(roi_data_out, os.path.join(out_dir, prefix + ".nii"))
