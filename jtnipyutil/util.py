@@ -419,7 +419,7 @@ def combine_runs(subj, out_folder, runs=False, bold_template = False, bmask_temp
 
 def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
                            mni_gm_file='', gm_thresh=1,
-                           x_axis_midpoint = '', l_hem = '', r_hem = '', kmean_num = ''):
+                           x_axis_midpoint = '', l_hem = '', r_hem = '', kmean_num = 0):
     '''
     This function iterates through 3d .nii ROI files within a folder and inflates each
     by a specified amount, saving the output
@@ -445,7 +445,7 @@ def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
         e.g. 'lh.L_'
     r_hem = string, unique identifier within ROI filenames identifying ROI as in the RIGHT hemisphere.
         e.g. 'rh.R_'
-    kmean_num = integer, denoting number of k means clusters to create in each ROI.
+    kmean_num = integer [default = 0], denoting number of k means clusters to create in each ROI.
 
     Example Input:
     roi_dir = '/home/neuro/atlases/Glasser atlas/v4_2009cAsym_uninflated/niftis'
@@ -506,7 +506,7 @@ def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
                     roi_data[x_axis_midpoint:,:,:] = 0
                 if l_hem in roi:
                     roi_data[:x_axis_midpoint,:,:] = 0
-                if kmean_num:# kmeans clustering.
+                if kmean_num > 0:# kmeans clustering.
                     roi_xyz = np.where(roi_data == 1) # grab coordinates within mask.
                     roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
                     roi_kmeans = KMeans(n_clusters = kmean_num).fit(roi_xyz_2d) # use kmeans clustering on x,y,z coordinates. We are clustering based on distance, s indexed by voxel dimensions.
@@ -518,10 +518,10 @@ def inflate_volumetric_ROI(roi_dir, work_dir, target_roi_list, vox_dilate,
                         roi_data[x_coord, y_coord, z_coord] = lab+1
                 # save and output data.
                 roi_data_out = nib.Nifti1Image(roi_data, nib.load(roi).affine, nib.load(roi).header)
-                prefix = roi.split('/')[-1].split('.nii')[0]+'_infl'+str(vox_dilate)
+                prefix = 'infl'+str(vox_dilate)+'.'+roi.split('/')[-1].split('.nii')[0]
                 if gm_thresh:
-                    prefix =  prefix + '_gmthresh'+str(gm_thresh).split('.')[-1]
-                if kmean_num:
+                    prefix =  'gmthresh'+str(gm_thresh).split('.')[-1]+'.' + prefix
+                if kmean_num > 0:
                     prefix = prefix + '_kMeanCluster'
                     for k_out in range(kmean_num): # save separate kmean clusters.
                         roi_data_k = np.copy(roi_data)
