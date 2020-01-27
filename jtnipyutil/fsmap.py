@@ -429,14 +429,14 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
         return (theta, rho, z)
 
     # make binary mask of PAG
-    roi_data = nib.load(roi).get_data()
-    roi_xyz = np.where(roi_data >= thresh) # grab coordinates within mask.
-    roi_data[np.where(roi_data < thresh)] = 0 # zero everything below the threshold
-    roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
+    PAG_file_data = nib.load(PAG_file).get_data()
+    PAG_file_xyz = np.where(PAG_file_data >= thresh) # grab coordinates within mask.
+    PAG_file_data[np.where(PAG_file_data < thresh)] = 0 # zero everything below the threshold
+    PAG_file_xyz_2d = np.array([[x, y, z] for x, y, z in zip(PAG_file_xyz[0], PAG_file_xyz[1], PAG_file_xyz[2])]) # transform 3d coordinates into a 2d array
 
     # PCA into polar coordinates within PAG.
-    pca = PCA().fit(roi_xyz_2d) # First dim will be along the length of the PAG, as it carries the most variance.
-    pca_score = pca.transform(roi_xyz_2d)
+    pca = PCA().fit(PAG_file_xyz_2d) # First dim will be along the length of the PAG, as it carries the most variance.
+    pca_score = pca.transform(PAG_file_xyz_2d)
 
     # Transform to polar coordinates
     theta, rho, z = cart2pol(pca_score[:,1]*-1, pca_score[:,2], pca_score[:,0]) # NOTE: # xdim flipped, to give dorsomedial at center, unzipping at ventromedial.
@@ -479,7 +479,7 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
 
     # Get beta weights within PAG mask.
     PAG_wholebrain = nib.load(con_file).get_data()
-    PAG_masked = PAG_wholebrain[np.where(roi_data >= thresh)]
+    PAG_masked = PAG_wholebrain[np.where(PAG_file_data >= thresh)]
 
     # Create figure of contrast beta estimates within PAG mask.
     plt.scatter(pag_degree*-1, z,c=PAG_masked, cmap=plt.cm.coolwarm, s=200, alpha=.6)
@@ -489,19 +489,19 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
 
     # Fill back in the kmeans labels into the original mask.
     for lab in np.unique(agglomo_clust_degree_pag.labels_):
-        label_xyz = roi_xyz_2d[agglomo_clust_degree_pag.labels_ == lab]
+        label_xyz = PAG_file_xyz_2d[agglomo_clust_degree_pag.labels_ == lab]
         x_coord = [label_xyz[:][coord][0] for coord in range(len(label_xyz))]
         y_coord = [label_xyz[:][coord][1] for coord in range(len(label_xyz))]
         z_coord = [label_xyz[:][coord][2] for coord in range(len(label_xyz))]
-        roi_data[x_coord, y_coord, z_coord] = lab+1
+        PAG_file_data[x_coord, y_coord, z_coord] = lab+1
     # save and output new PAG masks.
-    roi_data_out = nib.Nifti1Image(roi_data, nib.load(roi).affine, nib.load(roi).header)
-    prefix = roi.split('/')[-1].split('.nii')[0]+'_agglomCluster'
+    PAG_file_data_out = nib.Nifti1Image(PAG_file_data, nib.load(PAG_file).affine, nib.load(PAG_file).header)
+    prefix = PAG_file.split('/')[-1].split('.nii')[0]+'_agglomCluster'
     for k_out in range(5): # save separate kmean clusters.
-        roi_data_k = np.copy(roi_data)
-        roi_data_k[roi_data != k_out+1] = 0
-        roi_data_k[roi_data == k_out+1] = 1
-        roi_kdata_out = nib.Nifti1Image(roi_data_k, nib.load(roi).affine, nib.load(roi).header)
-        nib.save(roi_kdata_out, os.path.join(out_dir, prefix + '-' + str(k_out+1)+'.nii'))
-    # save full ROI.
-    nib.save(roi_data_out, os.path.join(out_dir, prefix + ".nii"))
+        PAG_file_data_k = np.copy(PAG_file_data)
+        PAG_file_data_k[PAG_file_data != k_out+1] = 0
+        PAG_file_data_k[PAG_file_data == k_out+1] = 1
+        PAG_file_kdata_out = nib.Nifti1Image(PAG_file_data_k, nib.load(PAG_file).affine, nib.load(PAG_file).header)
+        nib.save(PAG_file_kdata_out, os.path.join(out_dir, prefix + '-' + str(k_out+1)+'.nii'))
+    # save full PAG_file.
+    nib.save(PAG_file_data_out, os.path.join(out_dir, prefix + ".nii"))
