@@ -25,7 +25,8 @@ def laminar_mask_roi_list(subj, depth_file, img_file, conf_file, work_dir, roi_d
     ####### Fit cortical depth to the resting state data (affine and shape)
     fit_depth = resample_img(nib.load(depth_file),
                                      target_affine=nib.load(img_file).affine,
-                                     target_shape=nib.load(img_file).shape[0:3]) # this should be fine.
+                                     target_shape=nib.load(img_file).shape[0:3],
+                                     interpolation='nearest') # Modified this to use nearest neighbor, as continuous (default) was introducing low scoring voxels near the cortical surface.
     fit_depth_data = np.round(fit_depth.get_data(), 2) # rounding to 2 here kept the distribution similar to when the cortical depth was not transformed to bold space.
     nib.save(nib.Nifti1Image(fit_depth_data, fit_depth.affine,
                              fit_depth.header), os.path.join(work_dir, 'ALIGN_'+depth_file.split('/')[-1]))
@@ -128,7 +129,7 @@ def laminar_mask_roi_list(subj, depth_file, img_file, conf_file, work_dir, roi_d
                                 'depth_cat':list(range(0,3))*len(roi_refit_files),
                                 'cat_N':roi_countout_3})
     depth3_temp = pd.DataFrame(roi_output_3)
-    depth3_out = depth3_out.join(depth3_temp)
+    depth3_out = depth3_out.join(depth3_temp) # this is the average timecourse.
     depth3_out.to_csv(os.path.join(work_dir, 'depth3_'+out_label+'_'+img_file.split('/')[-1].split('.nii.gz')[0]+'.csv'),
                  index=False, header=True)
 

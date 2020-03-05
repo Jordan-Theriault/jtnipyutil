@@ -27,7 +27,7 @@ mkdir -p /scratch/$USER/$SUBJ/$PROJNAME/nighres
 
 cd /scratch/$USER
 
-$SINGULARITY shell \
+$SINGULARITY exec \
 --bind "/scratch:/scratch" \
 --bind "/autofs/cluster/iaslab/FSMAP/FSMAP_data:/data" \
 $IMAGE \
