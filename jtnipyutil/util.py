@@ -256,6 +256,7 @@ def clust_thresh(img, thresh=95, cluster_k=50):
     from scipy.ndimage import label
     out_labeled = np.empty((img.shape[0], img.shape[1],img.shape[2]))
     data = img[np.where(~np.isnan(img))] # strip out data, to avoid np.nanpercentile.
+    data = data[data > 0]
     img = np.nan_to_num(img)
     img[img < np.percentile(data, thresh)] = 0 #threshold residuals.
     label_map, n_labels = label(img) # label remaining voxels.
