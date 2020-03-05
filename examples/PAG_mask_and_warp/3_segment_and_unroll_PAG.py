@@ -17,4 +17,4 @@ con_file = os.path.join(root, 'data/dartel/nosmooth/_contrast_2_speech_prep/rand
 con_name = 'speech_prep'
 out_dir = os.path.join(root, 'output')
 
-segment_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2)
+segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2)
