@@ -704,7 +704,7 @@ def create_lvl1pipe_wf(options):
     # despike.inputs.in_file = # From Mask
     despike.inputs.outputtype = 'NIFTI_GZ'
 
-    from nipype.workflows.fmri.fsl.preprocess import create_susan_smooth
+    from jtnipyutil.workflows.fmri.fsl.preprocess import create_susan_smooth
     smooth_wf = create_susan_smooth()
     # smooth_wf.inputs.inputnode.in_files = # from maskBold
     # smooth_wf.inputs.inputnode.fwhm = # from inputspec
@@ -719,7 +719,7 @@ def create_lvl1pipe_wf(options):
     # specify_model.time_repetition # From inputspec
 
     ################## Estimate workflow
-    from nipype.workflows.fmri.fsl import estimate # fsl workflow
+    from jtnipyutil.workflows.fmri.fsl import estimate # fsl workflow
     modelfit = estimate.create_modelfit_workflow()
     modelfit.base_dir = '.'
     # modelfit.inputs.inputspec.session_info = # From specify_model
