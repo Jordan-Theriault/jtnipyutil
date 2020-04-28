@@ -869,3 +869,432 @@ def create_lvl1pipe_wf(options):
                                ])
             ])
     return lvl1pipe_wf
+
+def create_lvl1design_wf(options):
+    '''
+    Input [Mandatory]:
+        ~~~~~~~~~~~ Set in command call:
+        options: dictionary with the following entries
+            remove_steadystateoutlier [boolean]:
+                Should always be True. Remove steady state outliers from bold timecourse, specified in fmriprep confounds file.
+            ICA_AROMA [boolean]:
+                Use AROMA error components, from fmriprep confounds file.
+            poly_trend [integer. Use None to skip]:
+                If given, polynomial trends will be added to run confounds, up to the order of the integer
+                e.g. "0", gives an intercept, "1" gives intercept + linear trend,
+                "2" gives intercept + linear trend + quadratic.
+                DO NOT use in conjnuction with high pass filters.
+            dct_basis [integer. Use None to skip]:
+                If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
+                    Adds unit scaled cosine basis functions to Design_Matrix columns,
+                    based on spm-style discrete cosine transform for use in
+                    high-pass filtering. Does not add intercept/constant.
+                    DO NOT use in conjnuction with high pass filters.
+
+        ~~~~~~~~~~~ Set through inputs.inputspec
+
+        output_dir [string]:
+            path to desired output folder. Workflow will create a new subfolder based on proj_name.
+            e.g. model_wf.inputs.inputspec.output_dir = '/home/neuro/output'
+        proj_name [string]:
+            name for project subfolder within output_dir. Ideally something unique, or else workflow will write to an existing folder.
+            e.g. model_wf.inputs.inputspec.proj_name = 'FSMAP_stress'
+        design_col [string]:
+            Name of column within events.tsv with values corresponding to entries specified in params.
+            e.g. model_wf.inputs.inputspec.design_col = 'trial_type'
+        params [list fo strings]:
+            values within events.tsv design_col that correspond to events to be modeled.
+            e.g.  ['Instructions', 'Speech_prep', 'No_speech']
+        conditions [list, of either strings or lists],
+            each condition must be a string within the events.tsv design_col.
+            These conditions correspond to event conditions to be modeled.
+            Give a list, instead of a string, to model parametric terms.
+            These parametric terms give a event condition, then a parametric term, which is another column in the events.tsv file.
+            The parametric term can be centered and normed using entries 3 and 4 in the list.
+            e.g. model_wf.inputs.inputspec.params = ['condition1',
+                                                     'condition2',
+                                                    ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+                                                    ['condition2', 'paramatric2', 'cent', 'norm']]
+                     entry 1 is a condition within the design_col column
+                     entry 2 is a column in the events folder, which will be used for parametric weightings.
+                     entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                     entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+             Onsets and durations will be taken from corresponding values for entry 1
+             parametric weighting specified by entry 2, scaled/centered as specified, then
+             appended to the design matrix.
+        noise_regressors [list of strings]:
+            column names in confounds.tsv, specifying desired noise regressors for model.
+            IF noise_transforms are to be applied to a regressor, add '*' to the name.
+            e.g. model_wf.inputs.inputspec.noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+        noise_transforms [list of strings]:
+            noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
+            e.g. model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+        TR [float]:
+            Scanner TR value in seconds.
+            e.g. model_wf.inputs.inputspec.TR = 2.
+        hpf_cutoff [float]:
+            high pass filter value. DO NOT USE THIS in conjunction with poly_trend or dct_basis.
+            e.g. model_wf.inputs.inputspec.hpf_cutoff = 120.
+        bases: (a dictionary with keys which are 'hrf' or 'fourier' or 'fourier_han' or 'gamma' or 'fir' and with values which are any value)
+             dict {'name':{'basesparam1':val,...}}
+             name : string
+             Name of basis function (hrf, fourier, fourier_han, gamma, fir)
+             hrf :
+                 derivs : 2-element list
+                    Model HRF Derivatives. No derivatives: [0,0],
+                    Time derivatives : [1,0],
+                    Time and Dispersion derivatives: [1,1]
+             fourier, fourier_han, gamma, fir:
+                 length : int
+                    Post-stimulus window length (in seconds)
+                 order : int
+                    Number of basis functions
+            e.g. model_wf.inputs.inputspec.bases = {'dgamma':{'derivs': False}}
+        sinker_subs [list of tuples]:
+            passed to nipype.interfaces.io.Datasink. Changes names when passing to output directory.
+            e.g. model_wf.inputs.inputspec.sinker_subs =
+                [('pe1', 'pe1_instructions'),
+                 ('pe2', 'pe2_speech_prep'),
+                 ('pe3', 'pe3_no_speech')]
+        sample_bold [string providing path to a nifti file]:
+            Specifies path to a sample bold image, which has as many slices in 4d as entries in confounds file.
+            e.g. ['/home/neuro/workdir/test_model_design/data/sub-001_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz']
+        task_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant events.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. model_wf.inputs.inputspec.task_template =
+            {'task': '/home/neuro/data/sub-*/func/sub-*_task-stress_events.tsv'}
+            See bold_template for more detail.
+        confound_template [dictionary with string entry]:
+            Specifies path, with wildcard, to grab all relevant confounds.tsv files, corresponding to functional images. Each subject_list entry should uniquely identify the ONE relevant file.
+            e.g. model_wf.inputs.inputspec.confound_template =
+            {'confound': '/home/neuro/data/sub-*/func/sub-*_task-stress_bold_confounds.tsv'}
+            See bold_template for more detail.
+        subject_id [string]:
+            Identifies subject in conjnuction with template. See bold_template note above.
+            Can also be entered as an iterable from an outside workflow, in which case iterables are run in parallel to the extent that cpu cores are available.
+            e.g.
+                model_wf.inputs.inputspec.subject_id = 'sub-01'
+            OR Iterable e.g.
+                import nipype.pipeline.engine as pe
+                subject_list = ['sub-001', 'sub-002']
+                infosource = pe.Node(IdentityInterface(fields=['subject_id']),
+                           name='infosource')
+                infosource.iterables = [('subject_id', subject_list)]
+                full_model_wf = pe.Workflow(name='full_model_wf')
+                full_model_wf.connect([(infosource, model_wf, [('subject_id', 'inputspec.subject_id')])])
+                full_model_wf.run()
+    '''
+    import nipype.pipeline.engine as pe # pypeline engine
+    import nipype.interfaces.fsl as fsl
+    import os
+    from nipype import IdentityInterface, SelectFiles
+    from nipype.interfaces.utility.wrappers import Function
+
+    ##################  Setup workflow.
+    lvl1pipe_wf = pe.Workflow(name='lvl_one_pipe')
+
+    inputspec = pe.Node(IdentityInterface(
+        fields=['output_dir',
+                'design_col',
+                'noise_regressors',
+                'noise_transforms',
+                'TR', # in seconds.
+                'hpf_cutoff',
+                'conditions',
+                'bases',
+                'sinker_subs',
+                'sample_bold',
+                'task_template',
+                'confound_template',
+                'subject_id',
+                'proj_name',
+                ],
+        mandatory_inputs=False),
+                 name='inputspec')
+
+    ################## Select Files
+    def get_file(subj_id, template):
+        import glob
+        temp_list = []
+        out_list = []
+        if '_' in subj_id and '/anat/' in list(template.values())[0]:
+            subj_id = subj_id[:subj_id.find('_')]
+            # if looking for gmmask, and subj_id includes additional info (e.g. sub-001_task-trag_run-01) then just take the subject id component, as the run info will not be present for the anatomical data.
+        for x in glob.glob(list(template.values())[0]):
+            if subj_id in x:
+                temp_list.append(x)
+        for file in temp_list: # ensure no duplicate entries.
+            if file not in out_list:
+                out_list.append(file)
+        if len(out_list) == 0:
+            assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. 0 files were returned.'
+        if len(out_list) > 1:
+            assert (len(out_list) == 1), 'Each combination of template and subject ID should return 1 file. Multiple files returned.'
+        out_file = out_list[0]
+        return out_file
+
+    get_bold = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_file'],
+        function=get_file),
+                        name='get_bold')
+    get_task = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_file'],
+        function=get_file),
+                        name='get_task')
+    get_confile = pe.Node(Function(
+        input_names=['subj_id', 'template'],
+        output_names=['out_file'],
+        function=get_file),
+                        name='get_confile')
+
+
+    ################## Setup confounds
+    def get_terms(confound_file, noise_transforms, noise_regressors, TR, options):
+        '''
+        Gathers confounds (and transformations) into a pandas dataframe.
+
+        Input [Mandatory]:
+            confound_file [string]: path to confound.tsv file, given by fmriprep.
+            noise_transforms [list of strings]:
+                noise transforms to be applied to select noise_regressors above. Possible values are 'quad', 'tderiv', and 'quadtderiv', standing for quadratic function of value, temporal derivative of value, and quadratic function of temporal derivative.
+                e.g. model_wf.inputs.inputspec.noise_transforms = ['quad', 'tderiv', 'quadtderiv']
+            noise_regressors [list of strings]:
+                column names in confounds.tsv, specifying desired noise regressors for model.
+                IF noise_transforms are to be applied to a regressor, add '*' to the name.
+                e.g. model_wf.inputs.inputspec.noise_regressors = ['CSF', 'WhiteMatter', 'GlobalSignal', 'X*', 'Y*', 'Z*', 'RotX*', 'RotY*', 'RotZ*']
+            TR [float]:
+                Scanner TR value in seconds.
+            options: dictionary with the following entries
+                remove_steadystateoutlier [boolean]:
+                    Should always be True. Remove steady state outliers from bold timecourse, specified in fmriprep confounds file.
+                ICA_AROMA [boolean]:
+                    Use AROMA error components, from fmriprep confounds file.
+                poly_trend [integer. Use None to skip]:
+                    If given, polynomial trends will be added to run confounds, up to the order of the integer
+                    e.g. "0", gives an intercept, "1" gives intercept + linear trend,
+                    "2" gives intercept + linear trend + quadratic.
+                dct_basis [integer. Use None to skip]:
+                    If given, adds a discrete cosine transform, with a length (in seconds) of the interger specified.
+                        Adds unit scaled cosine basis functions to Design_Matrix columns,
+                        based on spm-style discrete cosine transform for use in
+                        high-pass filtering. Does not add intercept/constant.
+        '''
+        import numpy as np
+        import pandas as pd
+        from nltools.data import Design_Matrix
+
+        df_cf = pd.DataFrame(pd.read_csv(confound_file, sep='\t', parse_dates=False))
+        transfrm_list = []
+        for idx, entry in enumerate(noise_regressors): # get entries marked with *, indicating they should be transformed.
+            if '*' in entry:
+                transfrm_list.append(entry.replace('*', '')) # add entry to transformation list if it has *.
+                noise_regressors[idx] = entry.replace('*', '')
+
+        confounds = df_cf[noise_regressors]
+        transfrmd_cnfds = df_cf[transfrm_list] # for transforms
+        TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
+        if 'quad' in noise_transforms:
+            quad = np.square(transfrmd_cnfds - np.mean(transfrmd_cnfds,axis=0))
+            confounds = confounds.join(quad, rsuffix='_quad')
+        if 'tderiv' in noise_transforms:
+            tderiv = pd.DataFrame(pd.Series(np.gradient(transfrmd_cnfds[col]), TR_time)
+                                  for col in transfrmd_cnfds).T
+            tderiv.columns = transfrmd_cnfds.columns
+            tderiv.index = confounds.index
+            confounds = confounds.join(tderiv, rsuffix='_tderiv')
+        if 'quadtderiv' in noise_transforms:
+            quadtderiv = np.square(tderiv)
+            confounds = confounds.join(quadtderiv, rsuffix='_quadtderiv')
+        if options['remove_steadystateoutlier']:
+            if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^non_steady_state_outlier')]])
+            elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^NonSteadyStateOutlier')]]) # old syntax
+        if options['ICA_AROMA']:
+            if not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^aroma_motion')]])
+            elif not df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]].empty:
+                confounds = confounds.join(df_cf[df_cf.columns[df_cf.columns.to_series().str.contains('^AROMAAggrComp')]]) # old syntax
+        confounds = Design_Matrix(confounds, sampling_freq=1/TR)
+        if isinstance(options['poly_trend'], int):
+            confounds = confounds.add_poly(order = options['poly_trend']) # these do not play nice with high pass filters.
+        if isinstance(options['dct_basis'], int):
+            confounds = confounds.add_dct_basis(duration=options['dct_basis']) # these do not play nice with high pass filters.
+        return confounds
+
+    get_confounds = pe.Node(Function(input_names=['confound_file', 'noise_transforms',
+                                                  'noise_regressors', 'TR', 'options'],
+                                 output_names=['confounds'],
+                                  function=get_terms),
+                         name='get_confounds')
+    # get_confounds.inputs.confound_file =  # From get_confile
+    # get_confounds.inputs.noise_transforms =  # From inputspec
+    # get_confounds.inputs.noise_regressors =  # From inputspec
+    # get_confounds.inputs.TR =  # From inputspec
+    get_confounds.inputs.options = options
+
+    ################## Create bunch to run FSL first level model.
+    def get_subj_info(task_file, design_col, confounds, conditions):
+        '''
+        Makes a Bunch, giving all necessary data about conditions, onsets, and durations to
+            FSL first level model. Needs a task file to run.
+
+        Inputs:
+            task file [string], path to the subject events.tsv file, as per BIDS format.
+            design_col [string], column name within task file, identifying event conditions to model.
+            confounds [pandas dataframe], pd.df of confounds, gathered from get_confounds node.
+            conditions [list],
+                e.g. ['condition1',
+                      'condition2',
+                     ['condition1', 'parametric1', 'no_cent', 'no_norm'],
+                     ['condition2', 'paramatric2', 'cent', 'norm']]
+                     each string entry (e.g. 'condition1') specifies a event condition in the design_col column.
+                     each list entry includes 4 strings:
+                         entry 1 is a condition within the design_col column
+                         entry 2 is a column in the events folder, which will be used for parametric weightings.
+                         entry 3 is either 'no_cent', or 'cent', indicating whether to center the parametric variable.
+                         entry 4 is either 'no_norm', or 'norm', indicating whether to normalize the parametric variable.
+                 Onsets and durations will be taken from corresponding values for entry 1
+                 parametric weighting specified by entry 2, scaled/centered as specified, then
+                appended to the design matrix.
+        '''
+        from nipype.interfaces.base import Bunch
+        import pandas as pd
+        import numpy as np
+        from sklearn.preprocessing import scale
+
+        onsets = []
+        durations = []
+        amplitudes = []
+        df = pd.read_csv(task_file, sep='\t', parse_dates=False)
+        for idx, cond in enumerate(conditions):
+            if isinstance(cond, list):
+                if cond[2] == 'no_cent': # determine whether to center/scale
+                    c = False
+                elif cond[2] == 'cent':
+                    c = True
+                if cond[3] == 'no_norm':
+                    n = False
+                elif cond[3] == 'norm':
+                    n = True
+                # grab parametric terms.
+                onsets.append(list(df[df[design_col] == cond[0]].onset))
+                durations.append(list(df[df[design_col] == cond[0]].duration))
+                amp_temp = list(scale(df[df[design_col] == cond[0]][cond[1]].tolist(),
+                                   with_mean=c, with_std=n)) # scale
+                amp_temp = pd.Series(amp_temp, dtype=object).fillna(0).tolist() # fill na
+                amplitudes.append(amp_temp) # append
+                conditions[idx] = cond[0]+'_'+cond[1] # combine condition/parametric names and replace.
+            elif isinstance(cond, str):
+                onsets.append(list(df[df[design_col] == cond].onset))
+                durations.append(list(df[df[design_col] == cond].duration))
+                # dummy code 1's for non-parametric conditions.
+                amplitudes.append(list(np.repeat(1, len(df[df[design_col] == cond].onset))))
+            else:
+                print('cannot identify condition:', cond)
+        #             return None
+        output = Bunch(conditions= conditions,
+                           onsets=onsets,
+                           durations=durations,
+                           amplitudes=amplitudes,
+                           tmod=None,
+                           pmod=None,
+                           regressor_names=confounds.columns.values,
+                           regressors=confounds.T.values.tolist()) # movement regressors added here. List of lists.
+        return output
+
+    make_bunch = pe.Node(Function(input_names=['task_file', 'design_col', 'confounds', 'conditions'],
+                                 output_names=['subject_info'],
+                                  function=get_subj_info),
+                         name='make_bunch')
+    # make_bunch.inputs.task_file =  # From get_task
+    # make_bunch.inputs.confounds =  # From get_confounds
+    # make_bunch.inputs.design_col =  # From inputspec
+    # make_bunch.inputs.conditions =  # From inputspec
+
+    def mk_outdir(output_dir, proj_name):
+        import os
+        from time import gmtime, strftime
+        prefix = proj_name
+        new_out_dir = os.path.join(output_dir, prefix, 'design')
+        if not os.path.isdir(new_out_dir):
+            os.makedirs(new_out_dir)
+        return new_out_dir
+
+    make_outdir = pe.Node(Function(input_names=['output_dir', 'proj_name'],
+                                   output_names=['new_out_dir'],
+                                   function=mk_outdir),
+                          name='make_outdir')
+    # make_outdir.inputs.proj_name = from inputspec
+    # make_outdir.inputs.output_dir = from inputspec
+
+    ################## Model Generation.
+    import nipype.algorithms.modelgen as model
+    specify_model = pe.Node(interface=model.SpecifyModel(), name='specify_model')
+    specify_model.inputs.input_units = 'secs'
+    # specify_model.inputs.functional_runs = ['dummy.nii']
+    # specify_model.subject_info # From make_bunch.outputs.subject_info
+    # specify_model.high_pass_filter_cutoff # From inputspec
+    # specify_model.time_repetition # From inputspec
+
+    level1design = pe.Node(interface=fsl.Level1Design(), name="level1design")
+    level1design.inputs.model_serial_correlations = False
+#     level1design.inputs.interscan_interval = from inputspec.TR
+#     level1design.inputs.bases = from inputspec.bases
+#     level1design.inputs.session_info = from specify_model
+
+    modelgen = pe.MapNode(interface=fsl.FEATModel(), name='modelgen',
+        iterfield=['fsf_file', 'ev_files'])
+#     modelgen.inputs.fsf_file = from level1design
+#     modelgen.inputs.ev_files = from level1design
+
+    ################## DataSink
+    from nipype.interfaces.io import DataSink
+    import os.path
+    sinker = pe.Node(DataSink(), name='sinker')
+    # sinker.inputs.substitutions = # From inputspec
+    # sinker.inputs.base_directory = # frm make_outdir
+
+
+    lvl1pipe_wf.connect([
+        # grab subject/run info
+        (inputspec, get_task, [('subject_id', 'subj_id'),
+                                ('task_template', 'template')]),
+        (inputspec, get_confile, [('subject_id', 'subj_id'),
+                                ('confound_template', 'template')]),
+        (get_confile, get_confounds, [('out_file', 'confound_file')]),
+        (inputspec, get_confounds, [('noise_transforms', 'noise_transforms'),
+                                     ('noise_regressors', 'noise_regressors'),
+                                     ('TR', 'TR')]),
+        (get_confounds, make_bunch, [('confounds', 'confounds')]),
+        (get_task, make_bunch, [('out_file', 'task_file')]),
+        (inputspec, make_bunch, [('design_col', 'design_col'),
+                                  ('conditions', 'conditions')]),
+        (inputspec, make_outdir, [('output_dir', 'output_dir'),
+                                  ('proj_name', 'proj_name')]),
+        (inputspec, specify_model, [('sample_bold', 'functional_runs')]),
+        (make_bunch, specify_model, [('subject_info', 'subject_info')]),
+        (inputspec, specify_model, [('hpf_cutoff', 'high_pass_filter_cutoff'),
+                                     ('TR', 'time_repetition')]),
+        (inputspec, level1design, [('TR', 'interscan_interval'),
+                                  ('bases', 'bases')]),
+        (specify_model, level1design, [('session_info', 'session_info')]),
+        (level1design, modelgen, [('fsf_files', 'fsf_file'),
+                                  ('ev_files', 'ev_files')])
+        ])
+    lvl1pipe_wf.connect([
+        (inputspec, sinker, [('subject_id','container'),
+                              ('sinker_subs', 'substitutions')]), # creates folder for each subject.
+        (make_outdir, sinker, [('new_out_dir', 'base_directory')]),
+        (level1design, sinker, [('ev_files', 'design'),
+                            ('fsf_files', 'design.@fsf')]),
+        (modelgen, sinker, [('con_file', 'design.@confile'),
+                            ('fcon_file', 'design.@fconfile'),
+                            ('design_cov', 'design.@covmatriximg'),
+                            ('design_image', 'design.@designimg'),
+                            ('design_file', 'design.@designfile'),
+                           ])
+        ])
+    return lvl1pipe_wf
