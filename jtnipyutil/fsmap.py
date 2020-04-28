@@ -491,7 +491,7 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
     PAG_masked = PAG_wholebrain[np.where(roi_data >= thresh)]
 
     # Create figure of contrast beta estimates within PAG mask.
-    plt.scatter(pag_degree*-1, z,c=PAG_masked, cmap=plt.cm.coolwarm, s=200, alpha=.6)
+    plt.scatter(pag_degree, z,c=PAG_masked, cmap=plt.cm.coolwarm, s=200, alpha=.6)
     plt.colorbar()
     plt.savefig(os.path.join(out_dir, con_name+'in_PAG_unrolled.png'))
     plt.clf()
