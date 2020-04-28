@@ -1,1 +1,1 @@
-__all__ = ['fsmap', 'model', 'roi', 'util', 'anat']
+__all__ = ['fsmap', 'model', 'roi', 'util', 'anat', 'workflows']
