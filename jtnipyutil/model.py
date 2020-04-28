@@ -549,7 +549,7 @@ def create_lvl1pipe_wf(options):
         transfrmd_cnfds = df_cf[transfrm_list] # for transforms
         TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
         if 'quad' in noise_transforms:
-            quad = np.square(transfrmd_cnfds)
+            quad = np.square(transfrmd_cnfds - np.mean(transfrmd_cnfds,axis=0)
             confounds = confounds.join(quad, rsuffix='_quad')
         if 'tderiv' in noise_transforms:
             tderiv = pd.DataFrame(pd.Series(np.gradient(transfrmd_cnfds[col]), TR_time)
