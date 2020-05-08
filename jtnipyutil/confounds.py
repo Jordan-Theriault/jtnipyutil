@@ -7,7 +7,7 @@ def aCompCor_Muschelli(data_dir, out_dir, subj, task, ventricle_file):
         e.g. 'stress' for file sub-001_task-stress_bold_space-MNI152NLin2009cAsym_preproc.nii.gz
         If a task has multiple runs, include the run in this variable.
         e.g. rest_run-01 for sub-001_task-rest_run-01_bold_space-MNI152NLin2009cAsym_preproc.nii.gz
-    ventricle_file: [string] path and name of ALVIN ventricle mask nifti file.
+    ventricle_file: [string] path and name of ALVIN ventricle mask image file.
         Download from https://sites.google.com/site/mrilateralventricle/
     '''
     import os
