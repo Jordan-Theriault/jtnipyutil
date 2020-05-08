@@ -21,6 +21,10 @@ for subj in subj_list:
         conf_file = os.path.join(data_dir, subj, 'func', subj+'_task-'+task+'_bold_confounds.tsv')
         conf_data = pd.read_csv(conf_file, sep='\t')
 
+        # drop any prior PCA components, if they exist.
+        conf_data = conf_data[conf_data.columns.drop(list(conf_data.filter(regex='^aCompCorWMnoFilter')))]
+        conf_data = conf_data[conf_data.columns.drop(list(conf_data.filter(regex='^aCompCorCSFnoFilter')))]
+
         # add CSF top 5 PCA components to confounds file
         conf_data = pd.concat([conf_data,
             pd.read_csv(os.path.join(out_dir, subj, 'PCA', subj+'_task-'+task+'_CSF-aCompCor.csv')).iloc[:,0:5]],
