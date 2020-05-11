@@ -514,3 +514,75 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
         nib.save(roi_kdata_out, os.path.join(out_dir, prefix + '-' + str(k_out+1)+'.nii'))
     # save full ROI.
     nib.save(roi_data_out, os.path.join(out_dir, prefix + ".nii"))
+
+def split_vAIns(roi_dir, file_list):
+    '''
+    roi_dir [string], path to ROI_directory containing nifti ROI files.
+    file_list [string], list of ROI files.
+
+    This script assumes that left/right hemispheres are denoted with lh.L at the start of the file.
+    Elements of ROI names are hardcoded for the project this was originally designed for.
+
+    e.g.
+    import os, glob
+    base_dir = '/home/neuro/workdir/2020-05-11_split_vAIns'
+    roi_dir = os.path.join(base_dir, 'rois')
+    out_dir = os.path.join(base_dir, 'output')
+    subj = '001'
+    file_list = glob.glob(os.path.join(roi_dir, 'FSMAP_'+subj+'*', '*AAIC_ROI_dil_ribbon_EPI_bin.nii.gz'))
+
+    split_vAIns(roi_dir, file_list)
+    '''
+    import os
+    import nibabel as nib
+    import numpy as np
+
+    for f in file_list:
+        if 'lh.L' in f:
+            print('lh.L', f)
+            vAIns = nib.load(f).get_fdata()
+            roi_loc = np.where(vAIns==1)
+
+            vAIns_lat = np.zeros(shape=vAIns.shape,dtype=int)
+            lat_loc = tuple([roi_loc[0][roi_loc[0]<np.median(np.unique(roi_loc[0]))],
+                       roi_loc[1][roi_loc[0]<np.median(np.unique(roi_loc[0]))],
+                       roi_loc[2][roi_loc[0]<np.median(np.unique(roi_loc[0]))]])
+            vAIns_lat[lat_loc] = 1
+            nib.save(nib.Nifti1Image(vAIns_lat, nib.load(f).affine, nib.load(f).header),
+                os.path.join(roi_dir, # roi_dir
+                             f.split('/')[-2], #subj
+                             f.split('/')[-1].split('_ROI_dil_ribbon_EPI_bin.nii.gz')[0]+'-LAT'+'_ROI_dil_ribbon_EPI_bin.nii.gz'))
+
+            vAIns_med = np.zeros(shape=vAIns.shape,dtype=int)
+            med_loc = tuple([roi_loc[0][roi_loc[0]>np.median(np.unique(roi_loc[0]))],
+                       roi_loc[1][roi_loc[0]>np.median(np.unique(roi_loc[0]))],
+                       roi_loc[2][roi_loc[0]>np.median(np.unique(roi_loc[0]))]])
+            vAIns_med[med_loc] = 1
+            nib.save(nib.Nifti1Image(vAIns_med, nib.load(f).affine, nib.load(f).header),
+                os.path.join(roi_dir, # roi_dir
+                             f.split('/')[-2], #subj
+                             f.split('/')[-1].split('_ROI_dil_ribbon_EPI_bin.nii.gz')[0]+'-MED'+'_ROI_dil_ribbon_EPI_bin.nii.gz'))
+        if 'rh.R' in f:
+            print('rh.R', f)
+            vAIns = nib.load(f).get_fdata()
+            roi_loc = np.where(vAIns==1)
+
+            vAIns_lat = np.zeros(shape=vAIns.shape,dtype=int)
+            lat_loc = tuple([roi_loc[0][roi_loc[0]>np.median(np.unique(roi_loc[0]))],
+                       roi_loc[1][roi_loc[0]>np.median(np.unique(roi_loc[0]))],
+                       roi_loc[2][roi_loc[0]>np.median(np.unique(roi_loc[0]))]])
+            vAIns_lat[lat_loc] = 1
+            nib.save(nib.Nifti1Image(vAIns_lat, nib.load(f).affine, nib.load(f).header),
+                os.path.join(roi_dir, # roi_dir
+                             f.split('/')[-2], #subj
+                             f.split('/')[-1].split('_ROI_dil_ribbon_EPI_bin.nii.gz')[0]+'-LAT'+'_ROI_dil_ribbon_EPI_bin.nii.gz'))
+
+            vAIns_med = np.zeros(shape=vAIns.shape,dtype=int)
+            med_loc = tuple([roi_loc[0][roi_loc[0]<np.median(np.unique(roi_loc[0]))],
+                       roi_loc[1][roi_loc[0]<np.median(np.unique(roi_loc[0]))],
+                       roi_loc[2][roi_loc[0]<np.median(np.unique(roi_loc[0]))]])
+            vAIns_med[med_loc] = 1
+            nib.save(nib.Nifti1Image(vAIns_med, nib.load(f).affine, nib.load(f).header),
+                os.path.join(roi_dir, # roi_dir
+                             f.split('/')[-2], #subj
+                             f.split('/')[-1].split('_ROI_dil_ribbon_EPI_bin.nii.gz')[0]+'-MED'+'_ROI_dil_ribbon_EPI_bin.nii.gz'))
