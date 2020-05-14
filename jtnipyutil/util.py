@@ -851,3 +851,108 @@ def get_confounds(confound_file, noise_transforms, noise_regressors, TR, options
     if isinstance(options['dct_basis'], int):
         confounds = confounds.add_dct_basis(duration=options['dct_basis'])
     return confounds
+
+def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, return_voxels=None, dilate_roi=False, gm_method='scale'):
+    '''
+    subj = string, subject identifier, e.g. sub-001
+    gm_file = string, full path to gm mask, in same space as functional data.
+        Be sure to include hemisphere information in the name.
+        e.g. 'PATH/sub-001_fmriprep_skullstrip_ref_img.nii.gz__lh_REL.nii'
+    func_file = string, full path to preprocessed functional data.
+        e.g. PATH/'sub-001_task-rest_run-01_bold.nii.gz'
+    out_dir = string, full path to folder to save outputs.
+        e.g. '/home/workdir'
+    roi_path = string, glob path to grab all ROI files.
+        e.g. os.path.join(roi_dir, '*dil_ribbon_EPI_bin_ribbon.nii.gz')
+    out_label = string, to be added to output files to specify anything you want,
+        e.g. wm_Glasser
+    check_ouptut [default = None] = set to True to print GM masked functional data and dilated ROIs.
+    return_voxels [default = None] = set to True to output voxels for each ROI, along with x/y/z and GM prob.
+    dilate_roi [default = None] = set to an Integer to dilate each ROI by X voxels.
+    gm_method [default = 'scale'] = by default, this scales all functional data by the GM probability mask
+                To use a threshold instead, provide a probability thresold,
+                    e.g. .2
+    '''
+    print('subj: ', subj)
+    print('gm_file: ', gm_file)
+    print('func_file:', func_file)
+    print('out_dir:', out_dir)
+    print('roi_path:', roi_path)
+    print('out_label:', out_label)
+    print('return_voxels:', return_voxels)
+    print('check_output:', check_output, '\n\n')
+
+    import os, glob
+    import numpy as np
+    import pandas as pd
+    import nibabel as nib
+    from nilearn.image import resample_img
+    from scipy.ndimage.morphology import binary_dilation
+
+    print('linear neightbor interpolation of GM mask to functional space')
+    fit_gm = resample_img(nib.load(gm_file),
+                           target_affine=nib.load(func_file).affine,
+                           target_shape=nib.load(func_file).shape[0:3],
+                           interpolation='linear')
+
+    print('apply GM mask to functional data.')
+    if gm_method == 'scale':
+        func_dat = nib.load(func_file).get_fdata()*fit_gm.get_fdata()[...,None]
+    else:
+        assert isinstance(gm_method, float), 'for gm_method, use a float cutoff point for the GM mask'
+        func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() >= gm_method, 1, 0)[...,None]
+
+    if check_output:
+        nib.save(nib.Nifti1Image(func_dat, nib.load(func_file).affine, nib.load(func_file).header),
+                 os.path.join(out_dir, out_label+'_gm_masked_'+func_file.split('/')[-1]))
+
+
+    # resample ROI to subject space.
+    for roi in glob.glob(roi_path):
+        print('working on:', roi)
+        print('nearest neightbor interpolation of ROI to functional space')
+        fit_roi = resample_img(nib.load(roi),
+                               target_affine=nib.load(func_file).affine,
+                               target_shape=nib.load(func_file).shape[0:3],
+                               interpolation='nearest')
+        if dilate_roi:
+            print('dilate ROI by', dilate_roi, 'voxels')
+            fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
+                    fit_roi.affine, fit_roi.header)
+        if check_output:
+            nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+roi.split('/')[-1]))
+
+        print('grab ROI voxels from functional data, then averaging')
+        roi_dat = func_dat*fit_roi.get_fdata()[...,None]
+        roi_flat = roi_dat[fit_roi.get_fdata()==1] # TODO add that GM mask must be above some threshold too.
+        if return_voxels:
+            pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat.shape[0]),
+                                   'roi':np.repeat(roi, roi_flat.shape[0]),
+                                   'x_loc':np.where(fit_roi.get_fdata()==1)[0],
+                                   'y_loc':np.where(fit_roi.get_fdata()==1)[1],
+                                   'z_loc':np.where(fit_roi.get_fdata()==1)[2],
+                                   'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()==1]})
+            pd_roi = pd_roi.join(pd.DataFrame(roi_flat))
+            pd_roi.to_csv(
+                os.path.join(out_dir,
+                             out_label+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
+            index=False, header=True)
+        roi_mean = np.mean(roi_flat, axis=0)
+
+
+        print('saving ROI average')
+        if roi == roi_files[0]:
+            out_mean = roi_mean
+            out_N = roi_flat.shape[0]
+        else:
+            out_mean = np.vstack((out_mean, roi_mean))
+            out_N = np.hstack((out_N, roi_flat.shape[0]))
+
+    pd_out = pd.DataFrame({'subj':np.repeat(subj, len(roi_files)),
+                            'roi':[f.split('/')[-1] for f in roi_files],
+                            'cat_N':out_N})
+    pd_out = pd_out.join(pd.DataFrame(out_mean))
+    pd_out.to_csv(os.path.join(out_dir,
+                                os.path.join(out_dir, out_label+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
+                 index=False, header=True)
+    print('####\ndone with %s \n####' % subj)
