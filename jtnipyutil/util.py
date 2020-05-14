@@ -852,7 +852,7 @@ def get_confounds(confound_file, noise_transforms, noise_regressors, TR, options
         confounds = confounds.add_dct_basis(duration=options['dct_basis'])
     return confounds
 
-def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', export_sd=None, export_voxels=None, export_nii=None):
+def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_sd=None, export_voxels=None, export_nii=None):
     '''
     subj = string, subject identifier, e.g. sub-001.
         Can also use some other tag here, e.g. 'stress_lvl2_speech-prep'
@@ -869,9 +869,11 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
         e.g. wm_Glasser
     check_ouptut [default = None] = set to True to print GM masked functional data and dilated ROIs.
     dilate_roi [default = None] = set to an Integer to dilate each ROI by X voxels.
-    gm_method [default = 'scale'] = by default, this scales all functional data by the GM probability mask
-                To use a threshold instead, provide a probability thresold,
-                    e.g. .2
+    gm_method [default = 'scale'] Enter 'scale', 'above', or 'below'.
+            'scale' gives a weighted average by multiplying the functional data by the GM mask.
+            'above' includes all voxels in the GM mask ABOVE a threshold (given in gm_thresh)
+            'below' includes all voxels in the GM mask BELOW a threshold (given in gm_thresh)
+    gm_thresh [default = None] provide a float to use with thresholding in gm_method (e.g. .2)
     export_sd [default = None] = set to True to export standard deviation for each ROI
     export_voxels [default = None] = Provide a list of strings to extract voxels from those ROIs containing each string.
                 e.g. ['Caudate', 'Amygdala']
@@ -893,6 +895,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
     print('check_output:', check_output)
     print('dilate_roi:', dilate_roi)
     print('gm_method:', gm_method)
+    print('gm_thresh:', gm_thresh)
     print('export_sd:', export_sd)
     print('export_voxels:', export_voxels)
     print('export_nii:', export_nii, '\n\n')
@@ -913,12 +916,18 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
             func_dat = nib.load(func_file).get_fdata()*fit_gm.get_fdata()[...,None] # 4d func
         except:
             func_dat = nib.load(func_file).get_fdata()*fit_gm.get_fdata() # 3d func
-    else:
-        assert isinstance(gm_method, float), 'for gm_method, use a float cutoff point for the GM mask'
+    elif gm_method == 'above':
+        assert isinstance(gm_thresh, float), 'for gm_method=above, use a float cutoff point gm_thresh'
         try:
-            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() >= gm_method, 1, 0)[...,None] # 4d func
+            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() >= gm_thresh, 1, 0)[...,None] # 4d func
         except:
-            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() >= gm_method, 1, 0) # 3d func
+            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() >= gm_thresh, 1, 0) # 3d func
+    elif gm_method == 'below':
+        assert isinstance(gm_thresh, float), 'for gm_method=below, use a float cutoff point gm_thresh'
+        try:
+            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() <= gm_thresh, 1, 0)[...,None] # 4d func
+        except:
+            func_dat = nib.load(func_file).get_fdata()*np.where(fit_gm.get_fdata() <= gm_thresh, 1, 0) # 3d func
 
     if check_output:
         nib.save(nib.Nifti1Image(func_dat, nib.load(func_file).affine, nib.load(func_file).header),
@@ -946,6 +955,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
         except:
             roi_dat = func_dat*fit_roi.get_fdata() # 3d func
         roi_flat = roi_dat[fit_roi.get_fdata()>0] # >0 to accomodate determiniatic and prob. masks.
+        roi_flat[roi_flat==0.] = np.nan # any voxels that are exactly zero were masked by gm_thresh
         if export_voxels:
             assert isinstance(export_voxels, list), 'export_voxels must be a list of strings'
             if any(r in roi for r in export_voxels):
@@ -962,31 +972,37 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
                 index=False, header=True)
         if export_nii:
             try:
-                nii_out[fit_roi.get_fdata()[...,None]>0] = np.mean(roi_flat, axis=0)
+                nii_out[fit_roi.get_fdata()[...,None]>0] = np.nanmean(roi_flat[roi_flat!=0.], axis=0)
                 if export_sd:
-                    nii_sd_out[fit_roi.get_fdata()[...,None]>0] = np.std(roi_flat, axis=0)
+                    nii_sd_out[fit_roi.get_fdata()[...,None]>0] = np.nanstd(roi_flat[roi_flat!=0.], axis=0)
             except:
-                nii_out[fit_roi.get_fdata()>0] = np.mean(roi_flat, axis=0)
+                nii_out[fit_roi.get_fdata()>0] = np.nanmean(roi_flat, axis=0)
                 if export_sd:
-                    nii_sd_out[fit_roi.get_fdata()>0] = np.std(roi_flat, axis=0)
+                    nii_sd_out[fit_roi.get_fdata()>0] = np.nanstd(roi_flat, axis=0)
 
         print('saving ROI average')
         if roi == glob.glob(roi_path)[0]:
-            out_mean = np.mean(roi_flat, axis=0)
-            out_N = roi_flat.shape[0]
+            out_mean = np.nanmean(roi_flat, axis=0)
+            try:
+                out_N = np.sum(~np.isnan(roi_flat))/roi_flat.shape[1] # to ensure GM_thresholded voxels are excluded from the count
+            except:
+                out_N = np.sum(~np.isnan(roi_flat)) # in case data is 3d.
             out_median_x = np.median(np.where(fit_roi.get_fdata()>0)[0])
             out_median_y = np.median(np.where(fit_roi.get_fdata()>0)[1])
             out_median_z = np.median(np.where(fit_roi.get_fdata()>0)[2])
             if export_sd:
-                out_sd = np.std(roi_flat, axis=0)
+                out_sd = np.nanstd(roi_flat, axis=0)
         else:
-            out_mean = np.vstack((out_mean, np.mean(roi_flat, axis=0)))
-            out_N = np.hstack((out_N, roi_flat.shape[0]))
+            out_mean = np.vstack((out_mean, np.nanmean(roi_flat, axis=0)))
+            try:
+                out_N = np.hstack((out_N, np.sum(~np.isnan(roi_flat))/roi_flat.shape[1]))
+            except:
+                out_N = np.hstack((out_N, np.sum(~np.isnan(roi_flat))))
             out_median_x = np.hstack((out_median_x, np.median(np.where(fit_roi.get_fdata()>0)[0])))
             out_median_y = np.hstack((out_median_y, np.median(np.where(fit_roi.get_fdata()>0)[1])))
             out_median_z = np.hstack((out_median_z, np.median(np.where(fit_roi.get_fdata()>0)[2])))
             if export_sd:
-                out_sd = np.vstack((out_sd, np.std(roi_flat, axis=0)))
+                out_sd = np.vstack((out_sd, np.nanstd(roi_flat, axis=0)))
 
     pd_out = pd.DataFrame({'subj':np.repeat(subj, len(glob.glob(roi_path))),
                             'roi':[f.split('/')[-1] for f in glob.glob(roi_path)],
