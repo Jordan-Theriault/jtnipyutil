@@ -875,6 +875,19 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
     export_sd [default = None] = set to True to export standard deviation for each ROI
     export_voxels [default = None] = set to True to output voxels for each ROI, along with x/y/z and GM prob.
     export_nii [default = None] = set to True to output a .nii file with ROI averages.
+
+    Example command:
+        import os
+
+        subj = 'sub-001'
+        gm_file = os.path.join('/home/neuro/workdir/2020-05-11_extract_ROI/data', subj, subj+'_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz')
+        func_file  = os.path.join('/home/neuro/workdir/2020-05-11_extract_ROI/data', subj, subj+'_task-wm_bold_space-MNI152NLin2009cAsym_preproc.nii.gz')
+        roi_path = '/home/neuro/atlases/Glasser atlas/v4_2009cAsym_uninflated/niftis/*.nii.gz'
+        out_label = 'wm_Glasser'
+
+        extract_roi_from_list(subj, gm_file, func_file, out_dir,
+                          roi_path, out_label,
+                          gm_method=.2, export_sd=True)
     '''
     import os, glob
     import numpy as np
