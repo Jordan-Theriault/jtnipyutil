@@ -852,7 +852,7 @@ def get_confounds(confound_file, noise_transforms, noise_regressors, TR, options
         confounds = confounds.add_dct_basis(duration=options['dct_basis'])
     return confounds
 
-def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=False, gm_method='scale', export_sd=None, export_voxels=None, export_nii=None):
+def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', export_sd=None, export_voxels=None, export_nii=None):
     '''
     subj = string, subject identifier, e.g. sub-001.
         Can also use some other tag here, e.g. 'stress_lvl2_speech-prep'
@@ -873,21 +873,9 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
                 To use a threshold instead, provide a probability thresold,
                     e.g. .2
     export_sd [default = None] = set to True to export standard deviation for each ROI
-    export_voxels [default = None] = set to True to output voxels for each ROI, along with x/y/z and GM prob.
+    export_voxels [default = None] = Provide a list of strings to extract voxels from those ROIs containing each string.
+                e.g. ['Caudate', 'Amygdala']
     export_nii [default = None] = set to True to output a .nii file with ROI averages.
-
-    Example command:
-        import os
-
-        subj = 'sub-001'
-        gm_file = os.path.join('/home/neuro/workdir/2020-05-11_extract_ROI/data', subj, subj+'_T1w_space-MNI152NLin2009cAsym_class-GM_probtissue.nii.gz')
-        func_file  = os.path.join('/home/neuro/workdir/2020-05-11_extract_ROI/data', subj, subj+'_task-wm_bold_space-MNI152NLin2009cAsym_preproc.nii.gz')
-        roi_path = '/home/neuro/atlases/Glasser atlas/v4_2009cAsym_uninflated/niftis/*.nii.gz'
-        out_label = 'wm_Glasser'
-
-        extract_roi_from_list(subj, gm_file, func_file, out_dir,
-                          roi_path, out_label,
-                          gm_method=.2, export_sd=True)
     '''
     import os, glob
     import numpy as np
@@ -959,17 +947,19 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
             roi_dat = func_dat*fit_roi.get_fdata() # 3d func
         roi_flat = roi_dat[fit_roi.get_fdata()>0] # >0 to accomodate determiniatic and prob. masks.
         if export_voxels:
-            pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat.shape[0]),
-                                   'roi':np.repeat(roi, roi_flat.shape[0]),
-                                   'x_loc':np.where(fit_roi.get_fdata()>0)[0],
-                                   'y_loc':np.where(fit_roi.get_fdata()>0)[1],
-                                   'z_loc':np.where(fit_roi.get_fdata()>0)[2],
-                                   'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()>0]})
-            pd_roi = pd_roi.join(pd.DataFrame(roi_flat))
-            pd_roi.to_csv(
-                os.path.join(out_dir,
-                             out_label+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
-            index=False, header=True)
+            assert isinstance(export_voxels, list), 'export_voxels must be a list of strings'
+            if any(r in roi for r in export_voxels):
+                pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat.shape[0]),
+                                       'roi':np.repeat(roi, roi_flat.shape[0]),
+                                       'x_loc':np.where(fit_roi.get_fdata()>0)[0],
+                                       'y_loc':np.where(fit_roi.get_fdata()>0)[1],
+                                       'z_loc':np.where(fit_roi.get_fdata()>0)[2],
+                                       'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()>0]})
+                pd_roi = pd_roi.join(pd.DataFrame(roi_flat))
+                pd_roi.to_csv(
+                    os.path.join(out_dir,
+                                 out_label+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
+                index=False, header=True)
         if export_nii:
             try:
                 nii_out[fit_roi.get_fdata()[...,None]>0] = np.mean(roi_flat, axis=0)
