@@ -102,6 +102,40 @@ def combine_masks(dir_template, subj_list, out_dir, out_name, mask_template = Fa
             os.makedirs(out_dir)
             nib.save(out_file, os.path.join(out_dir, subj+'_'+out_name+'.nii'))
 
+def hemi_split(roi_path, out_dir):
+    '''
+    Splits a mask at the X midpoint, and outputs both hemispheres as indendepent masks.
+
+    roi_path [string, with wildcard] Path to all rois to split.
+    out_dir [string] Directory to save output to.
+    '''
+    import glob, os
+    import nibabel as nib
+    import numpy as np
+
+
+    for roi in roi_path:
+        print('grabbing:', roi)
+        roi_dat = nib.load(roi).get_fdata()
+        roi_dat[roi_dat>0] = 1 # binarize, in case of probabalistic masks.
+        roi_loc = np.where(roi_dat==1)
+
+        for hem in ['L_', 'R_']:
+            print('generating', hem, 'hemisphere')
+            roi_out = np.zeros(roi_dat.shape)
+            if hem == 'L_':
+                hem_roi = [roi_loc[0][roi_loc[0]<roi_dat.shape[0]/2],
+                           roi_loc[1][roi_loc[0]<roi_dat.shape[0]/2],
+                           roi_loc[2][roi_loc[0]<roi_dat.shape[0]/2]]
+            if hem == 'R_':
+                hem_roi = [roi_loc[0][roi_loc[0]>roi_dat.shape[0]/2],
+                           roi_loc[1][roi_loc[0]>roi_dat.shape[0]/2],
+                           roi_loc[2][roi_loc[0]>roi_dat.shape[0]/2]]
+
+            roi_out[tuple(hem_roi)] = nib.load(roi).get_fdata()[tuple(hem_roi)] # return original mask values, to preserb probabalistic masks.
+            nib.save(nib.Nifti1Image(roi_out, nib.load(roi).affine, nib.load(roi).header),
+                     os.path.join(out_dir, hem+roi.split('/')[-1]))
+
 def extract_rois_from_atlas(subj_list, data_template, atlas_template, out_dir, num_rois=False, subj_specific_atlas=False, headers=False):
     '''
     Grab all unique values (except 0) from a 3d Nifti atlas, then extract the average of all voxels in that ROI from another timeseries.
