@@ -904,6 +904,8 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
         if export_sd:
             nii_sd_out = np.zeros(nib.load(func_file).shape)
 
+    # TODO - apply confounds here. Use nilearn.image.clean_img. Create new .nii func_file.
+
     print('linear neightbor interpolation of GM mask to functional space')
     fit_gm = resample_img(nib.load(gm_file),
                            target_affine=nib.load(func_file).affine,
@@ -931,7 +933,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
 
     if check_output:
         nib.save(nib.Nifti1Image(func_dat, nib.load(func_file).affine, nib.load(func_file).header),
-                 os.path.join(out_dir, out_label+'_gm_masked_'+func_file.split('/')[-1]))
+                 os.path.join(out_dir, out_label+'_'+subj+'_gm_masked_'+func_file.split('/')[-1]))
 
 
     # resample ROI to subject space.
@@ -947,7 +949,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
             fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
                     fit_roi.affine, fit_roi.header)
         if check_output:
-            nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+roi.split('/')[-1]))
+            nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+subj+'_'+roi.split('/')[-1]))
 
         print('grab ROI voxels from functional data, then averaging')
         try:
@@ -960,7 +962,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
             assert isinstance(export_voxels, list), 'export_voxels must be a list of strings'
             if any(r in roi for r in export_voxels):
                 pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat.shape[0]),
-                                       'roi':np.repeat(roi, roi_flat.shape[0]),
+                                       'roi':np.repeat(roi.split('/')[-1], roi_flat.shape[0]),
                                        'x_loc':np.where(fit_roi.get_fdata()>0)[0],
                                        'y_loc':np.where(fit_roi.get_fdata()>0)[1],
                                        'z_loc':np.where(fit_roi.get_fdata()>0)[2],
@@ -968,7 +970,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
                 pd_roi = pd_roi.join(pd.DataFrame(roi_flat))
                 pd_roi.to_csv(
                     os.path.join(out_dir,
-                                 out_label+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
+                                 out_label+'_'+subj+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
                 index=False, header=True)
         if export_nii:
             try:
@@ -1014,7 +1016,7 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
     if export_sd:
         pd_out = pd_out.join(pd.DataFrame(out_sd).add_suffix('_sd'))
     pd_out.to_csv(os.path.join(out_dir,
-                                os.path.join(out_dir, out_label+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
+                                os.path.join(out_dir, out_label+'_'+subj+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
                  index=False, header=True)
 
     if export_nii:
@@ -1022,11 +1024,11 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
         nii_out_nib.header['cal_max'] = np.max(nii_out) # adjust min and max header info.
         nii_out_nib.header['cal_min'] = np.min(nii_out)
         nib.save(nii_out_nib,
-                 os.path.join(out_dir, out_label+'_nii_mean_'+func_file.split('/')[-1]))
+                 os.path.join(out_dir, out_label+'_'+subj+'_mean_'+func_file.split('/')[-1]))
         if export_sd:
             nii_out_sd_nib = nib.Nifti1Image(nii_sd_out, nib.load(func_file).affine, nib.load(func_file).header)
             nii_out_sd_nib.header['cal_max'] = np.max(nii_sd_out) # adjust min and max header info.
             nii_out_sd_nib.header['cal_min'] = np.min(nii_sd_out)
             nib.save(nii_out_sd_nib,
-                     os.path.join(out_dir, out_label+'_nii_sd_'+func_file.split('/')[-1]))
+                     os.path.join(out_dir, out_label+'_'+subj+'_sd_'+func_file.split('/')[-1]))
     print('####\ndone with %s \n####' % subj)
