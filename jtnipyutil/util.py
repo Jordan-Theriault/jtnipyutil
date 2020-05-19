@@ -852,7 +852,7 @@ def get_confounds(confound_file, noise_transforms, noise_regressors, TR, options
         confounds = confounds.add_dct_basis(duration=options['dct_basis'])
     return confounds
 
-def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_sd=None, export_voxels=None, export_nii=None):
+def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_sd=None, export_voxels=None, export_nii=None, func_step=1):
     '''
     Extract ROIs from functional data, given a list of nifti files.
 
@@ -890,156 +890,171 @@ def extract_roi_from_list(subj, gm_file, func_file, out_dir, roi_path, out_label
     export_voxels [default = None] = Provide a list of strings to extract voxels from those ROIs containing each string.
                 e.g. ['Caudate', 'Amygdala']
     export_nii [default = None] = set to True to output a .nii file with ROI averages.
+    func_step [default = 1] = Integer, denoting how many TRs to grab from functional data at once.
+                Use this to optimize to memory availability. e.g. 10 works on my desktop. The server can most likely run 50
     '''
-import os, glob
-import numpy as np
-import pandas as pd
-import nibabel as nib
-from nilearn.image import resample_img
-from scipy.ndimage.morphology import binary_dilation
+    import os, glob
+    import numpy as np
+    import pandas as pd
+    import nibabel as nib
+    from nilearn.image import resample_img
+    from scipy.ndimage.morphology import binary_dilation
 
-print('subj: ', subj)
-print('gm_file: ', gm_file)
-print('func_file:', func_file)
-print('out_dir:', out_dir)
-print('roi_path:', roi_path)
-print('out_label:', out_label)
-print('check_output:', check_output)
-print('dilate_roi:', dilate_roi)
-print('gm_method:', gm_method)
-print('gm_thresh:', gm_thresh)
-print('export_sd:', export_sd)
-print('export_voxels:', export_voxels)
-print('export_nii:', export_nii, '\n\n')
-if export_nii:
-    nii_out = np.zeros(nib.load(func_file).shape[0:3])
-    if export_sd:
-        nii_sd_out = np.zeros(nib.load(func_file).shape[0:3])
-
-func_img = nib.load(func_file)
-print('linear neightbor interpolation of GM mask to functional space')
-fit_gm = resample_img(nib.load(gm_file),
-                       target_affine=func_img.affine,
-                       target_shape=func_img.shape[0:3],
-                       interpolation='linear')
-
-# adjust length of slice loop, depending on whether image is 3d/4d
-if len(func_img.shape)==3:
-    TR_len = 1
-elif len(func_img.shape)==4:
-    TR_len = func_img.shape[-1]
-else:
-    print('ERROR: Use either a 3d or 4d functional file')
-    raise
-
-# resample ROI to subject space.
-for roi in glob.glob(roi_path):
-    print('working on:', roi)
-    print('nearest neightbor interpolation of ROI to functional space')
-    fit_roi = resample_img(nib.load(roi),
-                           target_affine=nib.load(func_file).affine,
-                           target_shape=nib.load(func_file).shape[0:3],
-                           interpolation='nearest')
-    if dilate_roi:
-        print('dilate ROI by', dilate_roi, 'voxels')
-        fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
-                fit_roi.affine, fit_roi.header)
-    if check_output:
-        nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+subj+'_'+roi.split('/')[-1]))
-
-    for TR in range(0, TR_len):
-        print('working on functional slice:', TR)
-        if len(func_img.shape)==3:
-            func_dat = func_img.get_fdata()
-        else:
-            func_dat = func_img.dataobj[..., TR] # grab only one slice if 4d.
-
-        print('apply GM mask to functional data.')
-        if gm_method == 'scale':
-            func_dat = func_dat*fit_gm.get_fdata()
-        elif gm_method == 'above':
-            assert isinstance(gm_thresh, float), 'for gm_method=above, use a float cutoff point gm_thresh'
-            func_dat = func_dat*np.where(fit_gm.get_fdata() >= gm_thresh, 1, 0)
-        elif gm_method == 'below':
-            assert isinstance(gm_thresh, float), 'for gm_method=below, use a float cutoff point gm_thresh'
-            func_dat = func_dat*np.where(fit_gm.get_fdata() <= gm_thresh, 1, 0)
-
-        print('grab ROI voxels from functional data, then averaging')
-        roi_dat = func_dat*fit_roi.get_fdata()
-        roi_flat = roi_dat[fit_roi.get_fdata()>0] # >0 to accomodate determiniatic and prob. masks.
-        roi_flat[roi_flat==0.] = np.nan # any voxels that are exactly zero were masked by gm_thresh
-
-        # stack voxels in ROI across all TRs.
-        if TR == 0:
-            roi_flat_all = roi_flat
-        else:
-            roi_flat_all = np.vstack((roi_flat_all, roi_flat))
-        # End TR loop
-
-    # Output for ROI.
-    if export_voxels:
-        assert isinstance(export_voxels, list), 'export_voxels must be a list of strings'
-        if any(r in roi for r in export_voxels):
-            pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat_all.shape[1]),
-                                   'roi':np.repeat(roi.split('/')[-1], roi_flat_all.shape[1]),
-                                   'x_loc':np.where(fit_roi.get_fdata()>0)[0],
-                                   'y_loc':np.where(fit_roi.get_fdata()>0)[1],
-                                   'z_loc':np.where(fit_roi.get_fdata()>0)[2],
-                                   'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()>0]})
-            pd_roi = pd_roi.join(pd.DataFrame(np.transpose(roi_flat_all)))
-            pd_roi.to_csv(
-                os.path.join(out_dir,
-                             out_label+'_'+subj+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
-            index=False, header=True)
-
+    print('subj: ', subj)
+    print('gm_file: ', gm_file)
+    print('func_file:', func_file)
+    print('out_dir:', out_dir)
+    print('roi_path:', roi_path)
+    print('out_label:', out_label)
+    print('check_output:', check_output)
+    print('dilate_roi:', dilate_roi)
+    print('gm_method:', gm_method)
+    print('gm_thresh:', gm_thresh)
+    print('export_sd:', export_sd)
+    print('export_voxels:', export_voxels)
+    print('export_nii:', export_nii)
+    print('func_step:', func_step, '\n\n')
     if export_nii:
-            nii_out[fit_roi.get_fdata()>0] = np.nanmean(roi_flat_all, axis=0)
+        nii_out = np.zeros(nib.load(func_file).shape[0:3])
+        if export_sd:
+            nii_sd_out = np.zeros(nib.load(func_file).shape[0:3])
+
+    func_img = nib.load(func_file)
+    print('linear neightbor interpolation of GM mask to functional space')
+    fit_gm = resample_img(nib.load(gm_file),
+                           target_affine=func_img.affine,
+                           target_shape=func_img.shape[0:3],
+                           interpolation='linear')
+
+    # adjust length of slice loop, depending on whether image is 3d/4d
+    if len(func_img.shape)==3:
+        TR_len = 1
+        assert func_step==1, 'If using a 3d functional image, func_step must be set at 1'
+    elif len(func_img.shape)==4:
+        TR_len = func_img.shape[-1]
+    else:
+        print('ERROR: Use either a 3d or 4d functional file')
+        raise
+
+    # resample ROI to subject space.
+    for roi in glob.glob(roi_path):
+        print('working on:', roi)
+        print('nearest neightbor interpolation of ROI to functional space')
+        fit_roi = resample_img(nib.load(roi),
+                               target_affine=nib.load(func_file).affine,
+                               target_shape=nib.load(func_file).shape[0:3],
+                               interpolation='nearest')
+        if dilate_roi:
+            print('dilate ROI by', dilate_roi, 'voxels')
+            fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
+                    fit_roi.affine, fit_roi.header)
+        if check_output:
+            nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+subj+'_'+roi.split('/')[-1]))
+
+        TR_list=[*range(0, TR_len, func_step)]
+        for idx, TR in enumerate(range(0, TR_len, func_step)):
+            if len(func_img.shape)==3:
+                func_dat = func_img.get_fdata()
+                func_dat = func_dat[...,None]
+            else:
+                if TR==TR_list[-1]:
+                    func_dat = func_img.dataobj[..., TR:] # grab slices from TR to end
+                    print('working on functional slices:', TR, 'to', TR_len)
+                else:
+                    func_dat = func_img.dataobj[..., TR:TR+func_step] # TR sets lower bound
+                    print('working on functional slices:', TR, 'to', TR+func_step)
+
+            print('apply GM mask to functional data.')
+            if gm_method == 'scale':
+                func_dat = func_dat*fit_gm.get_fdata()[...,None]
+            elif gm_method == 'above':
+                assert isinstance(gm_thresh, float), 'for gm_method=above, use a float cutoff point gm_thresh'
+                func_dat = func_dat*np.where(fit_gm.get_fdata() >= gm_thresh, 1, 0)[...,None]
+            elif gm_method == 'below':
+                assert isinstance(gm_thresh, float), 'for gm_method=below, use a float cutoff point gm_thresh'
+                func_dat = func_dat*np.where(fit_gm.get_fdata() <= gm_thresh, 1, 0)[...,None]
+
+            print('grab ROI voxels from functional data, then averaging')
+            roi_dat = func_dat*fit_roi.get_fdata()[...,None] # probabalistic mask.
+            roi_flat = roi_dat[fit_roi.get_fdata()>0] # >0 to accomodate determiniatic and prob. masks.
+            roi_flat[roi_flat==0.] = np.nan # any voxels that are exactly zero were masked by gm_thresh
+
+            # stack voxels in ROI across all TRs.
+            if TR == TR_list[0]:
+                roi_flat_all = roi_flat
+            else:
+                roi_flat_all = np.hstack((roi_flat_all, roi_flat))
+            # End TR loop
+
+        # Output for ROI.
+        if export_voxels:
+            assert isinstance(export_voxels, list), 'export_voxels must be a list of strings'
+            if any(r in roi for r in export_voxels):
+                pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat_all.shape[0]),
+                                       'roi':np.repeat(roi.split('/')[-1], roi_flat_all.shape[0]),
+                                       'roi_prob': fit_roi.get_fdata()[fit_roi.get_fdata()>0],
+                                       'x_loc':np.where(fit_roi.get_fdata()>0)[0],
+                                       'y_loc':np.where(fit_roi.get_fdata()>0)[1],
+                                       'z_loc':np.where(fit_roi.get_fdata()>0)[2],
+                                       'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()>0]})
+                pd_roi = pd_roi.join(pd.DataFrame(roi_flat_all))
+                pd_roi.to_csv(
+                    os.path.join(out_dir,
+                                 out_label+'_'+subj+'_voxels_'+roi.split('/')[-1].split('nii.gz')[0]+'.csv'),
+                index=False, header=True)
+
+        if export_nii:
+            print('writing mean nifti for:', roi)
+            nii_out[fit_roi.get_fdata()>0] = np.nanmean(roi_flat_all, axis=1)
             if roi == glob.glob(roi_path)[-1]:
+                print('saving mean nifti across all ROIs')
                 nii_out_nib = nib.Nifti1Image(nii_out, nib.load(func_file).affine, nib.load(func_file).header)
                 nii_out_nib.header['cal_max'] = np.nanmax(nii_out) # adjust min and max header info.
                 nii_out_nib.header['cal_min'] = np.nanmin(nii_out)
                 nib.save(nii_out_nib,
                          os.path.join(out_dir, out_label+'_'+subj+'_mean_'+func_file.split('/')[-1]))
             if export_sd:
-                nii_sd_out[fit_roi.get_fdata()>0] = np.nanstd(roi_flat_all, axis=0)
+                print('writing sd nifti for:', roi)
+                nii_sd_out[fit_roi.get_fdata()>0] = np.nanstd(roi_flat_all, axis=1)
                 if roi == glob.glob(roi_path)[-1]:
+                    print('saving SD nifti across all ROIs')
                     nii_out_sd_nib = nib.Nifti1Image(nii_sd_out, nib.load(func_file).affine, nib.load(func_file).header)
                     nii_out_sd_nib.header['cal_max'] = np.nanmax(nii_sd_out) # adjust min and max header info.
                     nii_out_sd_nib.header['cal_min'] = np.nanmin(nii_sd_out)
                     nib.save(nii_out_sd_nib,
                              os.path.join(out_dir, out_label+'_'+subj+'_sd_'+func_file.split('/')[-1]))
 
-    print('saving ROI average')
-    if roi == glob.glob(roi_path)[0]:
-        out_mean = np.nanmean(roi_flat_all, axis=1)
-        out_N = np.sum(~np.isnan(roi_flat))
-        out_median_x = np.median(np.where(fit_roi.get_fdata()>0)[0])
-        out_median_y = np.median(np.where(fit_roi.get_fdata()>0)[1])
-        out_median_z = np.median(np.where(fit_roi.get_fdata()>0)[2])
-        if export_sd:
-            out_sd = np.nanstd(roi_flat_all, axis=1)
-    else:
-        out_mean = np.vstack((out_mean, np.nanmean(roi_flat_all, axis=1)))
-        out_N = np.hstack((out_N, np.sum(~np.isnan(roi_flat))))
-        out_median_x = np.hstack((out_median_x, np.median(np.where(fit_roi.get_fdata()>0)[0])))
-        out_median_y = np.hstack((out_median_y, np.median(np.where(fit_roi.get_fdata()>0)[1])))
-        out_median_z = np.hstack((out_median_z, np.median(np.where(fit_roi.get_fdata()>0)[2])))
-        if export_sd:
-            out_sd = np.vstack((out_sd, np.nanstd(roi_flat_all, axis=1)))
-# end ROI loop
+        print('saving ROI average')
+        if roi == glob.glob(roi_path)[0]:
+            out_mean = np.nanmean(roi_flat_all, axis=0)
+            out_N = np.sum(~np.isnan(roi_flat_all[:,0]))
+            out_median_x = np.median(np.where(fit_roi.get_fdata()>0)[0])
+            out_median_y = np.median(np.where(fit_roi.get_fdata()>0)[1])
+            out_median_z = np.median(np.where(fit_roi.get_fdata()>0)[2])
+            if export_sd:
+                out_sd = np.nanstd(roi_flat_all, axis=0)
+        else:
+            out_mean = np.vstack((out_mean, np.nanmean(roi_flat_all, axis=0)))
+            out_N = np.hstack((out_N, np.sum(~np.isnan(roi_flat_all[:,0]))))
+            out_median_x = np.hstack((out_median_x, np.median(np.where(fit_roi.get_fdata()>0)[0])))
+            out_median_y = np.hstack((out_median_y, np.median(np.where(fit_roi.get_fdata()>0)[1])))
+            out_median_z = np.hstack((out_median_z, np.median(np.where(fit_roi.get_fdata()>0)[2])))
+            if export_sd:
+                out_sd = np.vstack((out_sd, np.nanstd(roi_flat_all, axis=0)))
+    # end ROI loop
 
-pd_out = pd.DataFrame({'subj':np.repeat(subj, len(glob.glob(roi_path))),
-                        'roi':[f.split('/')[-1] for f in glob.glob(roi_path)],
-                        'cat_N':out_N,
-                        'median_x':out_median_x,
-                        'median_y':out_median_y,
-                        'median_z':out_median_z})
-pd_out = pd_out.join(pd.DataFrame(out_mean).add_suffix('_mean'))
-if export_sd:
-    pd_out = pd_out.join(pd.DataFrame(out_sd).add_suffix('_sd'))
-pd_out.to_csv(os.path.join(out_dir,
-                            os.path.join(out_dir, out_label+'_'+subj+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
-             index=False, header=True)
+    pd_out = pd.DataFrame({'subj':np.repeat(subj, len(glob.glob(roi_path))),
+                            'roi':[f.split('/')[-1] for f in glob.glob(roi_path)],
+                            'cat_N':out_N,
+                            'median_x':out_median_x,
+                            'median_y':out_median_y,
+                            'median_z':out_median_z})
+    pd_out = pd_out.join(pd.DataFrame(out_mean.reshape(-1, len(out_mean))).add_suffix('_mean'))
+    if export_sd:
+        pd_out = pd_out.join(pd.DataFrame(out_sd.reshape(-1, len(out_sd))).add_suffix('_sd'))
+    pd_out.to_csv(os.path.join(out_dir,
+                                os.path.join(out_dir, out_label+'_'+subj+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
+                 index=False, header=True)
 
 
-print('####\ndone with %s \n####' % subj)
+    print('####\ndone with %s \n####' % subj)
