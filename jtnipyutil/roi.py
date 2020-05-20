@@ -372,11 +372,19 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
     # loop through rois, reshaping each to functional space, and dilating if necessary.
     for idx, roi in enumerate(glob.glob(roi_path)):
         print('loading:', roi)
-        print('nearest neightbor interpolation of ROI to functional space')
-        fit_roi = resample_img(nib.load(roi),
-                               target_affine=nib.load(func_file).affine,
-                               target_shape=nib.load(func_file).shape[0:3],
-                               interpolation='nearest')
+        if len(np.unique(nib.load(roi).get_fdata())) > 2:
+            print('linear interpolation of probabalistic ROI to functional space')
+            fit_roi = resample_img(nib.load(roi),
+                                   target_affine=nib.load(func_file).affine,
+                                   target_shape=nib.load(func_file).shape[0:3],
+                                   interpolation='linear')
+        else:
+            print('nearest neighbor interpolation of binary ROI to functional space')
+            fit_roi = resample_img(nib.load(roi),
+                                   target_affine=nib.load(func_file).affine,
+                                   target_shape=nib.load(func_file).shape[0:3],
+                                   interpolation='nearest')
+
         if dilate_roi:
             print('dilate ROI by', dilate_roi, 'voxels')
             fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
@@ -397,7 +405,8 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
         TR_len = 1
         func_dat = func_img.get_fdata()
         func_dat = func_dat[...,None]
-        assert func_step==1, 'If using a 3d functional image, func_step must be set at 1'
+        func_step==1
+        print('changing func_step to 1 to accomodate 3d image.')
 
     for TR in range(0, TR_len, func_step):
         if len(func_img.shape)>3: # trigger on 4d images.
@@ -548,11 +557,18 @@ def extract_voxels(subj, gm_file, func_file, out_dir, roi_path, out_label, expor
     for roi in glob.glob(roi_path):
         if any(r in roi for r in export_voxels):
             print('working on:', roi)
-            print('nearest neightbor interpolation of ROI to functional space')
-            fit_roi = resample_img(nib.load(roi),
-                                   target_affine=nib.load(func_file).affine,
-                                   target_shape=nib.load(func_file).shape[0:3],
-                                   interpolation='nearest')
+            if len(np.unique(nib.load(roi).get_fdata())) > 2:
+                print('linear interpolation of probabalistic ROI to functional space')
+                fit_roi = resample_img(nib.load(roi),
+                                       target_affine=nib.load(func_file).affine,
+                                       target_shape=nib.load(func_file).shape[0:3],
+                                       interpolation='linear')
+            else:
+                print('nearest neighbor interpolation of binary ROI to functional space')
+                fit_roi = resample_img(nib.load(roi),
+                                       target_affine=nib.load(func_file).affine,
+                                       target_shape=nib.load(func_file).shape[0:3],
+                                       interpolation='nearest')
             if dilate_roi:
                 print('dilate ROI by', dilate_roi, 'voxels. \n WARNING: THIS WILL REMOVE ANY PROBABLISTIC MAPPING AND SWITCH TO BINARY')
                 fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
