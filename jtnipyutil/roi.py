@@ -302,7 +302,7 @@ def integrate_roi2BIDs(subj_list, event_template, roi_template, out_dir, out_nam
         out_data.to_csv(os.path.join(out_dir, out_name+'.tsv'), sep='\t', index=False)
 
 
-def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_nii=None, func_step=1):
+def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_nii=None, func_step=10):
     '''
     Extract ROI timecourse from functional data, given a list of nifti files.
 
@@ -326,7 +326,7 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
         e.g. wm_Glasser
 
     [Optional]
-    check_ouptut [default = None] = set to True to print GM masked functional data and dilated ROIs.
+    check_output [default = None] = set to True to print GM masked functional data and dilated ROIs.
     dilate_roi [default = None] = set to an Integer to dilate each ROI by X voxels.
     gm_method [default = 'scale'] Enter 'scale', 'above', or 'below'.
             'scale' gives a weighted average by multiplying the functional data by the GM mask.
@@ -476,5 +476,120 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
             nii_sd_nib.header['cal_min'] = np.nanmin(nii_sd)
             nib.save(nii_sd_nib,
                      os.path.join(out_dir, out_label+'_'+subj+'_sd_'+func_file.split('/')[-1]))
+
+    print('####\ndone with %s \n####' % subj)
+
+def extract_voxels(subj, gm_file, func_file, out_dir, roi_path, out_label, export_voxels, dilate_roi=None, func_step=10):
+    '''
+    Extract voxels from ROIs in functional data, given a list of nifti files.
+    Works with 3d or 4d files, so can be applied to a timecouse, or to modeling output.
+    Does not remove confounds. For that use, nilearn.img.clean_img
+
+    [Required]
+    subj = string, subject identifier, e.g. sub-001.
+        Can also use some other tag here, e.g. 'stress_lvl2_speech-prep'
+    gm_file = string, full path to gm mask, in same space as functional data.
+        Be sure to include hemisphere information in the name.
+        e.g. 'PATH/sub-001_fmriprep_skullstrip_ref_img.nii.gz__lh_REL.nii'
+    func_file = string, full path to preprocessed functional data.
+        e.g. PATH/'sub-001_task-rest_run-01_bold.nii.gz'
+    out_dir = string, full path to folder to save outputs.
+        e.g. '/home/project/outputs'
+    roi_path = string, glob path to grab all ROI files.
+        e.g. os.path.join(roi_dir, '*dil_ribbon_EPI_bin_ribbon.nii.gz')
+    out_label = string, to be added to output files to specify anything you want,
+        e.g. wm_Glasser
+    export_voxels = list of strings to extract voxels from those ROIs containing each string.
+                e.g. ['Caudate', 'Amygdala']
+
+    [Optional]
+    dilate_roi [default = None] = set to an Integer to dilate each ROI by X voxels.
+    func_step [default = 1] = Integer, denoting how many TRs to grab from functional data at once.
+            Use this to optimize to memory availability. e.g. 10 works on my desktop. The server can most likely run 50
+    '''
+    import os, glob
+    import numpy as np
+    import pandas as pd
+    import nibabel as nib
+    from nilearn.image import resample_img
+    from scipy.ndimage.morphology import binary_dilation
+
+    print('subj: ', subj)
+    print('gm_file: ', gm_file)
+    print('func_file:', func_file)
+    print('out_dir:', out_dir)
+    print('roi_path:', roi_path)
+    print('out_label:', out_label)
+    print('check_output:', check_output)
+    print('dilate_roi:', dilate_roi)
+    print('export_sd:', export_sd)
+    print('export_voxels:', export_voxels)
+    print('func_step:', func_step, '\n\n')
+
+    func_img = nib.load(func_file)
+    print('linear neightbor interpolation of GM mask to functional space')
+    fit_gm = resample_img(nib.load(gm_file),
+                           target_affine=func_img.affine,
+                           target_shape=func_img.shape[0:3],
+                           interpolation='linear')
+
+    # adjust length of slice loop, depending on whether image is 3d/4d
+    try: # try to use the 4th dimension, will fail if there is none.
+        TR_list=[*range(0, func_img.shape[3], func_step)]
+        TR_len = func_img.shape[3]
+    except:
+        TR_list = [1]
+        TR_len = 1
+        func_dat = func_img.get_fdata()
+        func_dat = func_dat[...,None]
+        assert func_step==1, 'If using a 3d functional image, func_step must be set at 1'
+
+    # resample ROI to subject space.
+    for roi in glob.glob(roi_path):
+        if any(r in roi for r in export_voxels):
+            print('working on:', roi)
+            print('nearest neightbor interpolation of ROI to functional space')
+            fit_roi = resample_img(nib.load(roi),
+                                   target_affine=nib.load(func_file).affine,
+                                   target_shape=nib.load(func_file).shape[0:3],
+                                   interpolation='nearest')
+            if dilate_roi:
+                print('dilate ROI by', dilate_roi, 'voxels. \n WARNING: THIS WILL REMOVE ANY PROBABLISTIC MAPPING AND SWITCH TO BINARY')
+                fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
+                        fit_roi.affine, fit_roi.header)
+            if check_output:
+                nib.save(fit_roi, os.path.join(out_dir, out_label+'_'+subj+'_'+roi.split('/')[-1]))
+
+            for idx, TR in enumerate(range(0, TR_len, func_step)):
+                if len(func_img.shape)>3: # if 4d file
+                    if TR==TR_list[-1]:
+                        func_dat = func_img.dataobj[..., TR:] # grab slices from TR to end
+                        print('working on functional slices:', TR, 'to', TR_len)
+                    else:
+                        func_dat = func_img.dataobj[..., TR:TR+func_step] # TR sets lower bound
+                        print('working on functional slices:', TR, 'to', TR+func_step)
+
+                print('grab ROI voxels from functional data, then averaging')
+                roi_dat = func_dat*fit_roi.get_fdata()[...,None] # probabalistic mask.
+                roi_flat = roi_dat[fit_roi.get_fdata()>0] # >0 to accomodate determiniatic and prob. masks.
+                if TR == 0: # stack voxels in ROI across all TRs.
+                    roi_flat_all = roi_flat
+                else:
+                    roi_flat_all = np.hstack((roi_flat_all, roi_flat))
+
+            # Output for ROI.
+            pd_roi = pd.DataFrame({'subj':np.repeat(subj, roi_flat_all.shape[0]),
+                                   'tag':np.repeat(out_label, roi_flat_all.shape[0]),
+                                   'roi':np.repeat(roi.split('/')[-1], roi_flat_all.shape[0]),
+                                   'roi_prob': fit_roi.get_fdata()[fit_roi.get_fdata()>0],
+                                   'gm_prob':fit_gm.get_fdata()[fit_roi.get_fdata()>0],
+                                   'x_loc':np.where(fit_roi.get_fdata()>0)[0],
+                                   'y_loc':np.where(fit_roi.get_fdata()>0)[1],
+                                   'z_loc':np.where(fit_roi.get_fdata()>0)[2]})
+            pd_roi = pd_roi.join(pd.DataFrame(roi_flat_all.reshape(len(roi_flat_all), -1)))
+            pd_roi.to_csv(
+                os.path.join(out_dir,
+                             out_label+'_'+subj+'_voxels_'+roi.split('/')[-1].split('.nii.gz')[0]+'.csv'),
+            index=False, header=True)
 
     print('####\ndone with %s \n####' % subj)
