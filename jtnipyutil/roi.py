@@ -358,7 +358,7 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
     print('func_step:', func_step, '\n\n')
 
     func_img = nib.load(func_file)
-    print('linear neightbor interpolation of GM mask to functional space')
+    print('linear neighbor interpolation of GM mask to functional space')
     fit_gm = resample_img(nib.load(gm_file),
                            target_affine=func_img.affine,
                            target_shape=func_img.shape[0:3],
@@ -536,7 +536,7 @@ def extract_voxels(subj, gm_file, func_file, out_dir, roi_path, out_label, expor
     print('func_step:', func_step, '\n\n')
 
     func_img = nib.load(func_file)
-    print('linear neightbor interpolation of GM mask to functional space')
+    print('linear neighbor interpolation of GM mask to functional space')
     fit_gm = resample_img(nib.load(gm_file),
                            target_affine=func_img.affine,
                            target_shape=func_img.shape[0:3],
