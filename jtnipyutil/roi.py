@@ -302,7 +302,7 @@ def integrate_roi2BIDs(subj_list, event_template, roi_template, out_dir, out_nam
         out_data.to_csv(os.path.join(out_dir, out_name+'.tsv'), sep='\t', index=False)
 
 
-def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_nii=None, func_step=10):
+def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, check_output=None, dilate_roi=None, gm_method='scale', gm_thresh=None, export_nii=None):
     '''
     Extract ROI timecourse from functional data, given a list of nifti files.
 
@@ -334,10 +334,8 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
     gm_thresh [default = None] provide a float or list to use with thresholding in gm_method
         (e.g. [.2, 1.] to grab all gm voxels > .2)
     export_nii [default = None] = set to True to output a .nii file with ROI averages.
-    func_step [default = 1] = Integer, denoting how many TRs to grab from functional data at once.
-            Use this to optimize to memory availability. e.g. 10 works on my desktop. The server can most likely run 50
     '''
-    import os, glob
+    import os, glob, time
     import numpy as np
     import pandas as pd
     import nibabel as nib
@@ -354,11 +352,10 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
     print('dilate_roi:', dilate_roi)
     print('gm_method:', gm_method)
     print('gm_thresh:', gm_thresh)
-    print('export_nii:', export_nii)
-    print('func_step:', func_step, '\n\n')
+    print('export_nii:', export_nii, '\n\n')
 
     func_img = nib.load(func_file)
-    print('linear neighbor interpolation of GM mask to functional space')
+    print('linear neightbor interpolation of GM mask to functional space')
     fit_gm = resample_img(nib.load(gm_file),
                            target_affine=func_img.affine,
                            target_shape=func_img.shape[0:3],
@@ -386,83 +383,74 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
                                    interpolation='nearest')
 
         if dilate_roi:
-            print('dilate ROI by', dilate_roi, 'voxels')
+            print('dilate ROI by', dilate_roi, 'voxels. \n WARNING: THIS WILL REMOVE ANY PROBABLISTIC MAPPING AND SWITCH TO BINARY')
             fit_roi = nib.Nifti1Image(binary_dilation(fit_roi.get_fdata(), iterations=dilate_roi).astype(fit_roi.get_fdata().dtype),
                     fit_roi.affine, fit_roi.header)
 
         roi_all[...,idx] = fit_roi.get_fdata()
+
+        if idx == 0:
+            roi_median_x = np.median(np.where(roi_all[...,idx]>0)[0])
+            roi_median_y = np.median(np.where(roi_all[...,idx]>0)[1])
+            roi_median_z = np.median(np.where(roi_all[...,idx]>0)[2])
+        else:
+            roi_median_x = np.hstack((roi_median_x, np.median(np.where(roi_all[...,idx]>0)[0])))
+            roi_median_y = np.hstack((roi_median_y, np.median(np.where(roi_all[...,idx]>0)[1])))
+            roi_median_z = np.hstack((roi_median_z, np.median(np.where(roi_all[...,idx]>0)[2])))
+
+    roi_all[roi_all==0] = np.nan
 
     if check_output: # save ROI, in case you want to check output.
         nib.save(nib.Nifti1Image(roi_all, fit_roi.affine, fit_roi.header),
                  os.path.join(out_dir, out_label+'_'+subj+'_all_roi.nii.gz'))
 
     # adjust length of slice loop, depending on whether image is 3d/4d
-    try: # try to use the 4th dimension, will fail if there is none.
-        TR_list=[*range(0, func_img.shape[3], func_step)]
+    if len(func_img.shape) > 3: # Use the 4th dimension, if possible.
         TR_len = func_img.shape[3]
-    except:
-        TR_list=[1] # set to 1 if no 4th dimension, then setup 3d image as 4d.
+    else:
         TR_len = 1
         func_dat = func_img.get_fdata()
         func_dat = func_dat[...,None]
-        func_step==1
-        print('changing func_step to 1 to accomodate 3d image.')
 
-    for TR in range(0, TR_len, func_step):
-        if len(func_img.shape)>3: # trigger on 4d images.
-            if TR==TR_list[-1]:
-                func_dat = func_img.dataobj[..., TR:] # grab slices from TR to end
-                print('working on functional slices:', TR, 'to', TR_len)
-            else:
-                func_dat = func_img.dataobj[..., TR:TR+func_step] # TR sets lower bound
-                print('working on functional slices:', TR, 'to', TR+func_step)
+    for TR in range(0, TR_len):
+        print('working on functional slice:', TR)
+        if len(func_img.shape)==3: # trigger on 3d images.
+            func_dat = func_img.get_fdata()
+        else:
+            func_dat = func_img.dataobj[..., TR] # grab one slice at a time.
 
         print('apply GM mask to functional data.')
         if gm_method == 'scale':
-            func_dat = func_dat*fit_gm.get_fdata()[...,None]
+            func_dat = func_dat*fit_gm.get_fdata()
         elif gm_method == 'between':
             assert isinstance(gm_thresh, list), 'for gm_method=between, use a list of two float cutoff points for gm_thresh'
-            func_dat = func_dat*np.where((fit_gm.get_fdata() > gm_thresh[0]) & (fit_gm.get_fdata() <= gm_thresh[1]), 1, np.nan)[...,None]
-
-        for idx, roi in enumerate(glob.glob(roi_path)):
-            print('extract roi:', roi)
-            roi_dat = func_dat*roi_all[...,idx][...,None] # probabalistic mask.
-            roi_flat = roi_dat[roi_all[...,idx]>0] # >0 to accomodate determiniatic and prob. masks.
-
-            print('saving ROI average')
-            if idx == 0:# if first ROI.
-                TR_mean = np.nanmean(roi_flat, axis=0)
-                TR_N = np.sum(~np.isnan(roi_flat[:,0]))
-                TR_median_x = np.median(np.where(roi_all[...,idx]>0)[0])
-                TR_median_y = np.median(np.where(roi_all[...,idx]>0)[1])
-                TR_median_z = np.median(np.where(roi_all[...,idx]>0)[2])
-            else:
-                TR_mean = np.vstack((TR_mean, np.nanmean(roi_flat, axis=0))) # ROI x TRs
-                TR_N = np.hstack((TR_N, np.sum(~np.isnan(roi_flat[:,0]))))
-                TR_median_x = np.hstack((TR_median_x, np.median(np.where(roi_all[...,idx]>0)[0])))
-                TR_median_y = np.hstack((TR_median_y, np.median(np.where(roi_all[...,idx]>0)[1])))
-                TR_median_z = np.hstack((TR_median_z, np.median(np.where(roi_all[...,idx]>0)[2])))
-
-        if TR == 0:# if first set of TRs.
-            out_mean = TR_mean
-            out_N = TR_N
-            out_median_x = TR_median_x
-            out_median_y = TR_median_y
-            out_median_z = TR_median_z
+            func_dat = func_dat*np.where((fit_gm.get_fdata() > gm_thresh[0]) & (fit_gm.get_fdata() <= gm_thresh[1]), 1, np.nan)
         else:
-            out_mean = np.hstack((out_mean, TR_mean)) # combine [ROI x TR] with [ROI x TR]
+            raise('Use either scale or between for gm_method')
+
+        print('extract all rois')
+        TR_dat = roi_all*func_dat[...,None] # multiplied to handle probabalistic masks.
+        TR_dat = TR_dat.reshape(np.prod(TR_dat.shape[0:-1]), -1)
+
+        print('saving TR average')
+        if TR == 0:
+            TR_mean = np.nanmean(TR_dat, axis=0)
+        else:
+            TR_mean = np.vstack((TR_mean, np.nanmean(TR_dat, axis=0))) # ROI x TRs
 
     # export data to .csv
     pd_out = pd.DataFrame({'subj':np.repeat(subj, len(glob.glob(roi_path))),
                            'tag':np.repeat(out_label, len(glob.glob(roi_path))),
                             'roi':[f.split('/')[-1] for f in glob.glob(roi_path)],
-                            'cat_N':out_N,
-                            'median_x':out_median_x,
-                            'median_y':out_median_y,
-                            'median_z':out_median_z})
-    if len(TR_list) > 1: # no STD on 3d images.
-        pd_out['roi_sd'] = np.nanstd(out_mean, axis=1)
-    pd_out = pd_out.join(pd.DataFrame(out_mean.reshape(len(out_mean),-1)).add_suffix('_mean'))
+                            'cat_N':np.sum(~np.isnan(TR_dat), axis=0),
+                            'median_x':roi_median_x,
+                            'median_y':roi_median_y,
+                            'median_z':roi_median_z})
+    if TR_len > 1: # no STD on 3d images.
+        pd_out['roi_sd'] = np.nanstd(TR_mean, axis=0)
+        pd_out = pd_out.join(pd.DataFrame(TR_mean.reshape(-1,len(TR_mean))).add_suffix('_mean'))
+    else:
+        pd_out = pd_out.join(pd.DataFrame(TR_mean).add_suffix('_mean'))
     pd_out.to_csv(os.path.join(out_dir,
                                os.path.join(out_dir, out_label+'_'+subj+'_'+func_file.split('/')[-1].split('.nii.gz')[0]+'.csv')),
                   index=False, header=True)
@@ -471,15 +459,18 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
         nii_mean = np.zeros(nib.load(func_file).shape[0:3])
         print('writing nifti for ROI means.')
         for idx, roi in enumerate(glob.glob(roi_path)):
-            nii_mean[roi_all[...,idx]>0] = np.nanmean(out_mean[idx,:]) # This is mean of voxel means across TRs.
+            if TR_len > 1:
+                nii_mean[roi_all[...,idx]>0] = np.mean(TR_mean[:,idx]) # This is mean of voxel means across TRs.
+            else:
+                nii_mean[roi_all[...,idx]>0] = np.mean(TR_mean[idx]) # This is mean of voxel means across TRs.
         nii_mean_nib = nib.Nifti1Image(nii_mean, nib.load(func_file).affine, nib.load(func_file).header)
         nii_mean_nib.header['cal_max'] = np.nanmax(nii_mean) # adjust min and max header info.
         nii_mean_nib.header['cal_min'] = np.nanmin(nii_mean)
         nib.save(nii_mean_nib,
                  os.path.join(out_dir, out_label+'_'+subj+'_mean_'+func_file.split('/')[-1]))
-        if len(TR_list) > 1:
+        if TR_len > 1:
             nii_sd = np.zeros(nib.load(func_file).shape[0:3])
-            nii_sd[roi_all[...,idx]>0] = np.nanstd(out_mean[idx,:]) # This is mean of voxel means across TRs.
+            nii_sd[roi_all[...,idx]>0] = np.std(TR_mean[:,idx]) # This is mean of voxel means across TRs.
             nii_sd_nib = nib.Nifti1Image(nii_sd, nib.load(func_file).affine, nib.load(func_file).header)
             nii_sd_nib.header['cal_max'] = np.nanmax(nii_sd) # adjust min and max header info.
             nii_sd_nib.header['cal_min'] = np.nanmin(nii_sd)
