@@ -448,7 +448,7 @@ def extract_timecourse(subj, gm_file, func_file, out_dir, roi_path, out_label, c
                             'median_z':roi_median_z})
     if TR_len > 1: # no STD on 3d images.
         pd_out['roi_sd'] = np.nanstd(TR_mean, axis=0)
-        pd_out = pd_out.join(pd.DataFrame(TR_mean.reshape(-1,len(TR_mean))).add_suffix('_mean'))
+        pd_out = pd_out.join(pd.DataFrame(TR_mean.transpose()).add_suffix('_mean'))
     else:
         pd_out = pd_out.join(pd.DataFrame(TR_mean).add_suffix('_mean'))
     pd_out.to_csv(os.path.join(out_dir,
@@ -522,7 +522,6 @@ def extract_voxels(subj, gm_file, func_file, out_dir, roi_path, out_label, expor
     print('out_label:', out_label)
     print('check_output:', check_output)
     print('dilate_roi:', dilate_roi)
-    print('export_sd:', export_sd)
     print('export_voxels:', export_voxels)
     print('func_step:', func_step, '\n\n')
 
@@ -593,7 +592,7 @@ def extract_voxels(subj, gm_file, func_file, out_dir, roi_path, out_label, expor
                                    'x_loc':np.where(fit_roi.get_fdata()>0)[0],
                                    'y_loc':np.where(fit_roi.get_fdata()>0)[1],
                                    'z_loc':np.where(fit_roi.get_fdata()>0)[2]})
-            pd_roi = pd_roi.join(pd.DataFrame(roi_flat_all.reshape(len(roi_flat_all), -1)))
+            pd_roi = pd_roi.join(pd.DataFrame(roi_flat_all))
             pd_roi.to_csv(
                 os.path.join(out_dir,
                              out_label+'_'+subj+'_voxels_'+roi.split('/')[-1].split('.nii.gz')[0]+'.csv'),
