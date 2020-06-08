@@ -399,7 +399,7 @@ def get_cortical_thickness(subj, data_dir, work_dir, space=''):
         output_dir=work_dir)
 
 
-def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
+def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_space_f, out_dir, thresh = .2, smooth_mm=1):
     '''
     Grab PAG mask, 2nd level contrast, then unwrap the PAG along its length, producing a map of
     left/right dorsal and ventral strips, and the dorsomedial strip.
@@ -410,16 +410,39 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
         e.g. '/home/neuro/workdir/2019-12-04_PAG_lvl2/data/dartel/nosmooth/_contrast_2_speech_prep/randomise_raw_tstat1.nii.gz'
     con_name [string]: name of contrast.
         e.g. 'speech_prep'
+    out_space_f [string, path and file name]: space to reslice data into.
+        e.g. the 2009b MNI T1 template, w .5mm resolution. (mni_icbm152_t1_tal_nlin_asym_09b_hires.nii.nii.gz)
     out_dir [string, path]: output direction.
         e.g. '/home/neuro/workdir/2019-12-04_PAG_lvl2/output'
     thresh [float, default = .2]: probability threshold for PAG_file mask.
+    smooth_mm [integer, default=1]: mm to smooth contrast.
     '''
     from sklearn.decomposition import PCA
     from sklearn.cluster import AgglomerativeClustering
+    from nilearn.image import resample_img
+    from nilearn.image import smooth_img
     import nibabel as nib
     import numpy as np
     import os, glob
     import matplotlib.pyplot as plt
+    import matplotlib.colors as colors
+    import math
+
+    class MidpointNormalize(colors.Normalize):
+        """
+        Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
+        e.g. im=ax1.imshow(array, norm=MidpointNormalize(midpoint=0.,vmin=-100, vmax=100))
+        Copied from http://chris35wills.github.io/matplotlib_diverging_colorbar/
+        """
+        def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+            self.midpoint = midpoint
+            colors.Normalize.__init__(self, vmin, vmax, clip)
+
+        def __call__(self, value, clip=None):
+            # I'm ignoring masked values and all kinds of edge cases to make a
+            # simple example...
+            x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
+            return np.ma.masked_array(np.interp(value, x, y), np.isnan(value))
 
     def cart2pol(x, y, z):
         import numpy as np
@@ -427,93 +450,205 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_dir, thresh = .2):
         rho = np.sqrt(x**2 + y**2)
         z = z
         return (theta, rho, z)
+    # smooth mask.
+    print('resampling', PAG_file.split('/')[-1], 'to space in', out_space_f.split('/')[-1])
+    roi_resamp = resample_img(nib.load(PAG_file),
+                           target_affine=nib.load(out_space_f).affine,
+                           target_shape=nib.load(out_space_f).shape[0:3],
+                           interpolation='nearest')
+    roi_resamp.get_fdata()[roi_resamp.get_fdata() < thresh] = 0.
+    nib.save(nib.Nifti1Image(roi_resamp.get_fdata(),
+                             nib.load(out_space_f).affine, nib.load(out_space_f).header),
+                             os.path.join(out_dir,'PAG_targetspace.nii.gz'))
 
-    # make binary mask of PAG
-    roi_data = nib.load(PAG_file).get_data()
-    roi_xyz = np.where(roi_data >= thresh) # grab coordinates within mask.
-    roi_data[np.where(roi_data < thresh)] = 0 # zero everything below the threshold
+    print('performing PCA on PAG voxel coordinates.')
+    roi_xyz = np.where(roi_resamp.get_fdata() >= thresh) # grab coordinates within mask.
+    roi_xyz[0][:] = roi_xyz[0] - np.mean(roi_xyz[0]) # center
+    roi_xyz[1][:] = roi_xyz[1] - np.mean(roi_xyz[1])
+    roi_xyz[2][:] = roi_xyz[2] - np.mean(roi_xyz[2])
     roi_xyz_2d = np.array([[x, y, z] for x, y, z in zip(roi_xyz[0], roi_xyz[1], roi_xyz[2])]) # transform 3d coordinates into a 2d array
 
     # PCA into polar coordinates within PAG.
     pca = PCA().fit(roi_xyz_2d) # First dim will be along the length of the PAG, as it carries the most variance.
     pca_score = pca.transform(roi_xyz_2d)
+    pca_score[:,1] = pca_score[:,1]*-1 # x dim multiplied by -1 to flip zero point to center on dorsomedial.
+    theta, rho, z = cart2pol(pca_score[:,1], pca_score[:,2], pca_score[:,0])  # theta in radians.
+    pag_degree = (theta*180/np.pi)
+    # correct angle offset.
+    pca_angle = math.asin(pca.components_[1,0])*(180/np.pi) # calculate offset from Y in 2nd component.
+    pag_degree = pag_degree-pca_angle
+    pag_degree[np.where(pag_degree>180)] = pag_degree[np.where(pag_degree>180)]-360 # adjust where angle goes beyond +/-180 range.
+    pag_degree[np.where(pag_degree<-180)] = pag_degree[np.where(pag_degree<-180)]+360
 
-    # Transform to polar coordinates
-    theta, rho, z = cart2pol(pca_score[:,1]*-1, pca_score[:,2], pca_score[:,0]) # NOTE: # xdim flipped, to give dorsomedial at center, unzipping at ventromedial.
-    pag_degree = theta*180/np.pi
+    print('assigning clusters within PAG')
+    # Hardcoding clustering by degree, so we can set the angle.
+    pag_clust = pag_degree.copy()
+    pag_clust[np.where(pag_degree>65)] = 5 # R ventral
+    pag_clust[np.where(pag_degree<=65)] = 4 # R dorsal
+    pag_clust[np.where(abs(pag_degree)<=20)] = 3 # dorsomedial
+    pag_clust[np.where(pag_degree<=-20)] = 2 # L dorsal
+    pag_clust[np.where(pag_degree<=-65)] = 1 # L ventral
+    pag_clust[np.where(abs(pag_degree)>120)] = 0 # remove Dorsal Raphe
 
-    # Cluster intro strips.
-    agglomo_clust_degree_pag = AgglomerativeClustering(n_clusters = 5,
-                                                affinity='l1',
-                                                linkage='average').fit(np.array([pag_degree, z]).transpose())
+    # Split each column into 1/3rds.
+    pag_clust2 = pag_clust.copy()
+    for clust in np.unique(pag_clust)[1:]:
+        data_3rd = (np.max(z[np.where(pag_clust==clust)]) - np.min(z[np.where(pag_clust==clust)]))/3
+        target = np.min(z[pag_clust==clust]) + data_3rd # middle third
+        pag_clust2[(z>target) & (pag_clust==clust)] = pag_clust[(z>target) & (pag_clust==clust)]+5
+        target = np.min(z[pag_clust==clust]) + data_3rd*2 # top third
+        pag_clust2[(z>target) & (pag_clust==clust)] = pag_clust[(z>target) & (pag_clust==clust)]+10
+
+    # # # Alternative method: Cluster into strips, using only data over 120 degrees.
+    # # degree_z = np.array([pag_degree[np.where(abs(pag_degree)<=120)],
+    # #                                 z[np.where(abs(pag_degree)<=120)]]).transpose()
+    # # clm_clust = AgglomerativeClustering(n_clusters = 5,
+    # #                                             affinity='l1',
+    # #                                             linkage='average').fit(degree_z)
+    # # pag_clust = pag_degree.copy()
+    # # pag_clust[np.where(abs(pag_degree)>120)] = 0
+    # # pag_clust[np.where(abs(pag_degree)<=120)] = clm_clust.labels_+1
+
     ## plot segmentation.
-    # First, order the segments
-    cluster_means = []
-    cluster_ids = []
-    for label in np.unique(agglomo_clust_degree_pag.labels_):
-        cluster_means.append(np.mean(pag_degree[agglomo_clust_degree_pag.labels_==label]))
-        cluster_ids.append(label)
-    cluster_order = sorted(zip(cluster_means, cluster_ids))
+    ## First, order the segments by the x dimension.
+    clm_means = []
+    clm_ids = []
+    for label in np.unique(np.unique(pag_clust)[1:]):
+        clm_means.append(np.mean(pag_degree[pag_clust==label]))
+        clm_ids.append(label)
+    clm_order = sorted(zip(clm_means, clm_ids))
 
-    # then label.
-    labdict = {'L-ventral':cluster_order[0][1],
-               'L-dorsal':cluster_order[1][1],
-               'dorsomedial':cluster_order[2][1],
-               'R-dorsal':cluster_order[3][1],
-               'R-ventral':cluster_order[4][1],
+    ## then label.
+    labdict = {'L-ventral':clm_order[0][1],
+               'L-dorsal':clm_order[1][1],
+               'dorsomedial':clm_order[2][1],
+               'R-dorsal':clm_order[3][1],
+               'R-ventral':clm_order[4][1],
                }
     cdict = {'dorsomedial': 'teal',
-            'L-dorsal': 'royalblue',
-            'R-dorsal': 'salmon',
-            'L-ventral': 'darkred',
-            'R-ventral': 'blueviolet'}
+            'R-dorsal': 'royalblue',
+            'L-dorsal': 'salmon',
+            'R-ventral': 'darkred',
+            'L-ventral': 'blueviolet'}
 
-    # Create figure of slice through PAG
+    ## Create figure of slice through PAG
+    print('printing clustered sliced through PAG')
     fig, ax = plt.subplots()
     for lab in labdict:
-        ix = np.where(agglomo_clust_degree_pag.labels_ == labdict[lab])
-        ax.scatter(pca_score[ix,1], pca_score[ix,2], c=cdict[lab], label=lab, s=200, alpha=.6)
+        ix = np.where(pag_clust == labdict[lab]) # flip x axis for visualization
+        ax.scatter(pca_score[ix,2], pca_score[ix,1], c=cdict[lab], label=lab, s=200, alpha=.6)
     plt.legend(loc='upper right', fontsize ='small', bbox_to_anchor=(1.26,1.05))
     plt.savefig(os.path.join(out_dir, 'PAG_slice.png'))
     plt.clf()
 
     # Create figure of PAG unrolled.
+    print('printing clusters in unrolled PAG')
     fig, ax = plt.subplots()
     for lab in labdict:
-        ix = np.where(agglomo_clust_degree_pag.labels_ == labdict[lab])
+        ix = np.where(pag_clust == labdict[lab]) # flip x axis for visualization
         ax.scatter(pag_degree[ix], z[ix], c=cdict[lab], label=lab, s=200, alpha=.6) # pag_degree flipped to put left PAG on left side of graph.
     plt.legend(loc='upper right', fontsize ='small', bbox_to_anchor=(1.26,1.05))
     plt.savefig(os.path.join(out_dir, 'PAG_unrolled.png'))
     plt.clf()
 
+    # Fill back in the kmeans labels into the original mask.
+    print('saving Niftis of clusters in unrolled PAG')
+    roi_data = np.zeros(roi_resamp.shape)
+    roi_data[roi_resamp.get_fdata() >= thresh] = pag_clust
+    nib.save(nib.Nifti1Image(roi_data, roi_resamp.affine, roi_resamp.header), os.path.join(out_dir, 'PAG_' + "allClusters.nii.gz")) # all clusters.
+    for lab in labdict:
+        # save separate kmean clusters.
+        roi_data_k = np.zeros(roi_resamp.shape)
+        roi_data_k[np.where(roi_data == labdict[lab])] = 1
+        nib.save(nib.Nifti1Image(roi_data_k, roi_resamp.affine, roi_resamp.header), os.path.join(out_dir, 'PAG_' + lab +'.nii.gz'))
+        # save smoothed contrast.
+
+
+    # Unrolled figure with ROIs along caudal-rostral axis.
+    labdict = {'L-ventral-caudal':clm_order[0][1],
+               'L-ventral-medial':clm_order[0][1]+5,
+               'L-ventral-rostral':clm_order[0][1]+10,
+               'L-dorsal-caudal':clm_order[1][1],
+               'L-dorsal-medial':clm_order[1][1]+5,
+               'L-dorsal-rostral':clm_order[1][1]+10,
+               'dorsomedial-caudal':clm_order[2][1],
+               'dorsomedial-medial':clm_order[2][1]+5,
+               'dorsomedial-rostral':clm_order[2][1]+10,
+               'R-dorsal-caudal':clm_order[3][1],
+               'R-dorsal-medial':clm_order[3][1]+5,
+               'R-dorsal-rostral':clm_order[3][1]+10,
+               'R-ventral-caudal':clm_order[4][1],
+               'R-ventral-medial':clm_order[4][1]+5,
+               'R-ventral-rostral':clm_order[4][1]+10,
+               }
+    cdict = {'L-ventral-caudal': 'teal',
+               'L-ventral-medial': 'c',
+               'L-ventral-rostral': 'cyan',
+               'L-dorsal-caudal': 'royalblue',
+               'L-dorsal-medial': 'lightsteelblue',
+               'L-dorsal-rostral': 'deepskyblue',
+               'dorsomedial-caudal': 'salmon',
+               'dorsomedial-medial': 'orangered',
+               'dorsomedial-rostral': 'peru',
+               'R-dorsal-caudal': 'darkred',
+               'R-dorsal-medial': 'r',
+               'R-dorsal-rostral': 'lightcoral',
+               'R-ventral-caudal': 'blueviolet',
+               'R-ventral-medial': 'mediumorchid',
+               'R-ventral-rostral': 'magenta',
+               }
+
+    print('printing clusters in unrolled PAG, split along rostral/caudal axis')
+    fig, ax = plt.subplots()
+    for lab in labdict:
+        ix = np.where(pag_clust2 == labdict[lab]) # flip x axis for visualization
+        ax.scatter(pag_degree[ix], z[ix], c=cdict[lab], label=lab, s=200, alpha=.6) # pag_degree flipped to put left PAG on left side of graph.
+    plt.legend(loc='upper right', fontsize ='small', bbox_to_anchor=(1.26,1.05))
+    plt.savefig(os.path.join(out_dir, 'PAG_15cat_unrolled.png'))
+    plt.clf()
+
+    print('saving Niftis of clusters in unrolled PAG, split along rostral/caudal axis')
+    # Fill back in the kmeans labels into the original mask.
+    roi_data = np.zeros(roi_resamp.shape)
+    roi_data[roi_resamp.get_fdata() >= thresh] = pag_clust2
+    nib.save(nib.Nifti1Image(roi_data, roi_resamp.affine, roi_resamp.header), os.path.join(out_dir, 'PAG_15cat_' + "allClusters.nii.gz")) # all clusters.
+    for lab in labdict:
+        # save separate kmean clusters.
+        roi_data_k = np.zeros(roi_resamp.shape)
+        roi_data_k[np.where(roi_data == labdict[lab])] = 1
+        nib.save(nib.Nifti1Image(roi_data_k, roi_resamp.affine, roi_resamp.header), os.path.join(out_dir, 'PAG_15cat_' + lab +'.nii.gz'))
+        # save smoothed contrast.
+
+    print('resampling, smoothing, and saving image/Nifti of contrast:', con_file.split('/')[-1])
     # Get beta weights within PAG mask.
-    PAG_wholebrain = nib.load(con_file).get_data()
-    PAG_masked = PAG_wholebrain[np.where(roi_data >= thresh)]
+    con_smooth = resample_img(nib.load(con_file),
+                           target_affine=nib.load(out_space_f).affine,
+                           target_shape=nib.load(out_space_f).shape[0:3],
+                           interpolation='nearest')
+    if smooth_mm > 0:
+        con_smooth = smooth_img(con_smooth, fwhm=smooth_mm)
+    PAG_masked = con_smooth.get_fdata()[np.where(roi_resamp.get_fdata() >= thresh)]
 
     # Create figure of contrast beta estimates within PAG mask.
-    plt.scatter(pag_degree, z,c=PAG_masked, cmap=plt.cm.coolwarm, s=200, alpha=.6)
+    if pca.components_[2,0] < 0:
+        plt.scatter(pag_degree[np.where(pag_clust2>0)]*-1, z[np.where(pag_clust2>0)],
+                    c=PAG_masked[np.where(pag_clust2>0)],
+                    cmap=plt.cm.coolwarm, s=200, alpha=.6,
+                    norm = MidpointNormalize(midpoint=0))
+    elif pca.components_[2,0] > 0:
+        plt.scatter(pag_degree[np.where(pag_clust2>0)], z[np.where(pag_clust2>0)],
+                c=PAG_masked[np.where(pag_clust2>0)],
+                cmap=plt.cm.coolwarm, s=200, alpha=.6,
+                norm = MidpointNormalize(midpoint=0))
+    else:
+        raise Exception('pca.compnent_[2,0] == 0, not sure whether to invert pag_degree. Unlikley this will happen')
     plt.colorbar()
     plt.savefig(os.path.join(out_dir, con_name+'in_PAG_unrolled.png'))
     plt.clf()
 
-    # Fill back in the kmeans labels into the original mask.
-    for lab in np.unique(agglomo_clust_degree_pag.labels_):
-        label_xyz = roi_xyz_2d[agglomo_clust_degree_pag.labels_ == lab]
-        x_coord = [label_xyz[:][coord][0] for coord in range(len(label_xyz))]
-        y_coord = [label_xyz[:][coord][1] for coord in range(len(label_xyz))]
-        z_coord = [label_xyz[:][coord][2] for coord in range(len(label_xyz))]
-        roi_data[x_coord, y_coord, z_coord] = lab+1
-    # save and output new PAG masks.
-    roi_data_out = nib.Nifti1Image(roi_data, nib.load(PAG_file).affine, nib.load(PAG_file).header)
-    prefix = PAG_file.split('/')[-1].split('.nii')[0]+'_agglomCluster'
-    for k_out in range(5): # save separate kmean clusters.
-        roi_data_k = np.copy(roi_data)
-        roi_data_k[roi_data != k_out+1] = 0
-        roi_data_k[roi_data == k_out+1] = 1
-        roi_kdata_out = nib.Nifti1Image(roi_data_k, nib.load(PAG_file).affine, nib.load(PAG_file).header)
-        nib.save(roi_kdata_out, os.path.join(out_dir, prefix + '-' + str(k_out+1)+'.nii'))
-    # save full ROI.
-    nib.save(roi_data_out, os.path.join(out_dir, prefix + ".nii"))
+    nib.save(nib.Nifti1Image(con_smooth.get_fdata()*roi_resamp.get_fdata(),
+                             con_smooth.affine, con_smooth.header),
+                             os.path.join(out_dir, con_name +'smoothed.nii.gz'))
 
 def split_vAIns(roi_dir, file_list):
     '''
