@@ -147,13 +147,13 @@ def create_lvl2tfce_wf(mask=False):
             from nilearn.image import resample_img
             import nibabel as nib
             import os
-            out_file = resample_img(nib.load(mask_file),
-                                   target_affine=nib.load(ref_file).affine,
-                                   target_shape=nib.load(ref_file).shape[0:3],
-                                   interpolation='nearest')
-            nib.save(out_file, os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz'))
-            out_mask = os.path.join(os.getcwd(), mask_file.split('.nii')[0]+'_fit.nii.gz')
-            return out_mask
+            mask_resamp = resample_img(nib.load(mask_file),
+                       target_affine=nib.load(ref_file).affine,
+                       target_shape=nib.load(ref_file).shape[0:3],
+                       interpolation='linear')
+            nib.save(mask_resamp, os.path.join(os.getcwd(), 'mask.nii.gz'))
+            return os.path.join(os.getcwd(), 'mask.nii.gz')
+
         fit_mask = pe.Node(Function(
             input_names=['mask_file', 'ref_file'],
             output_names=['out_mask'],
