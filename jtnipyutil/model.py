@@ -259,6 +259,9 @@ def create_lvl1pipe_wf(options):
                     based on spm-style discrete cosine transform for use in
                     high-pass filtering. Does not add intercept/constant.
                     DO NOT use in conjnuction with high pass filters.
+            spike_regression [float]
+                If given, all TRs with framewise displacement above this value are
+                modeled as single impulse spikes
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -533,6 +536,9 @@ def create_lvl1pipe_wf(options):
                         Adds unit scaled cosine basis functions to Design_Matrix columns,
                         based on spm-style discrete cosine transform for use in
                         high-pass filtering. Does not add intercept/constant.
+                spike_regression [float]
+                    If given, all TRs with framewise displacement above this value are
+                    modeled as single impulse spikes
         '''
         import numpy as np
         import pandas as pd
@@ -548,6 +554,12 @@ def create_lvl1pipe_wf(options):
         confounds = df_cf[noise_regressors]
         transfrmd_cnfds = df_cf[transfrm_list] # for transforms
         TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
+        if options['spike_regression']:
+            fd = df_cf['FramewiseDisplacement']
+            for spike in fd.index[fd > options['spike_regression']].tolist():
+                spike_vec = np.zeros(fd.shape[0])
+                spike_vec[spike] = 1
+                confounds = confounds.join(pd.DataFrame(columns=['spike_'+str(spike)], data={'spike_'+str(spike):spike_vec}))
         if 'quad' in noise_transforms:
             quad = np.square(transfrmd_cnfds - np.mean(transfrmd_cnfds,axis=0))
             confounds = confounds.join(quad, rsuffix='_quad')
@@ -890,6 +902,10 @@ def create_lvl1design_wf(options):
                     based on spm-style discrete cosine transform for use in
                     high-pass filtering. Does not add intercept/constant.
                     DO NOT use in conjnuction with high pass filters.
+            spike_regression [float]
+                If given, all TRs with framewise displacement above this value are
+                modeled as single impulse spikes
+
 
         ~~~~~~~~~~~ Set through inputs.inputspec
 
@@ -1080,6 +1096,9 @@ def create_lvl1design_wf(options):
                         Adds unit scaled cosine basis functions to Design_Matrix columns,
                         based on spm-style discrete cosine transform for use in
                         high-pass filtering. Does not add intercept/constant.
+                spike_regression [float]
+                    If given, all TRs with framewise displacement above this value are
+                    modeled as single impulse spikes
         '''
         import numpy as np
         import pandas as pd
@@ -1095,6 +1114,12 @@ def create_lvl1design_wf(options):
         confounds = df_cf[noise_regressors]
         transfrmd_cnfds = df_cf[transfrm_list] # for transforms
         TR_time = pd.Series(np.arange(0.0, TR*transfrmd_cnfds.shape[0], TR)) # time series for derivatives.
+        if options['spike_regression']:
+            fd = df_cf['FramewiseDisplacement']
+            for spike in fd.index[fd > options['spike_regression']].tolist():
+                spike_vec = np.zeros(fd.shape[0])
+                spike_vec[spike] = 1
+                confounds = confounds.join(pd.DataFrame(columns=['spike_'+str(spike)], data={'spike_'+str(spike):spike_vec}))
         if 'quad' in noise_transforms:
             quad = np.square(transfrmd_cnfds - np.mean(transfrmd_cnfds,axis=0))
             confounds = confounds.join(quad, rsuffix='_quad')
