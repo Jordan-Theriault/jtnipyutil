@@ -450,12 +450,12 @@ def segment_and_unroll_PAG(PAG_file, con_file, con_name, out_space_f, out_dir, t
         rho = np.sqrt(x**2 + y**2)
         z = z
         return (theta, rho, z)
-    # smooth mask.
+    # resample mask.
     print('resampling', PAG_file.split('/')[-1], 'to space in', out_space_f.split('/')[-1])
     roi_resamp = resample_img(nib.load(PAG_file),
                            target_affine=nib.load(out_space_f).affine,
                            target_shape=nib.load(out_space_f).shape[0:3],
-                           interpolation='nearest')
+                           interpolation='linear')
     roi_resamp.get_fdata()[roi_resamp.get_fdata() < thresh] = 0.
     nib.save(nib.Nifti1Image(roi_resamp.get_fdata(),
                              nib.load(out_space_f).affine, nib.load(out_space_f).header),
