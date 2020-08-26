@@ -822,9 +822,9 @@ def create_lvl1pipe_wf(options):
                 ])
         else:
             lvl1pipe_wf.connect([
-                (get_bold, maskBold, [('out_file', 'img_file')]),
-                (despike, specify_model, [('out_file', 'functional_runs')]),
-                (despike, modelfit, [('out_file', 'inputspec.functional_data')]),
+                (despike, maskBold, [('out_file', 'img_file')]),
+                (maskBold, specify_model, [('out_file', 'functional_runs')]),
+                (maskBold, modelfit, [('out_file', 'inputspec.functional_data')]),
                 (despike, sinker, [('out_file', 'despike')])
                 ])
     else:
