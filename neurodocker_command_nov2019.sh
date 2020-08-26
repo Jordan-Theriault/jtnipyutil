@@ -15,7 +15,7 @@ docker run --rm kaczmarj/neurodocker:master generate docker \
                  traits pandas matplotlib scikit-learn==0.20.3 seaborn" \
   pip_install="https://github.com/nipy/nipype/tarball/1.4.2
                https://github.com/INCF/pybids/tarball/0.9.4
-               nltools nilearn datalad[full] nipy duecredit niwidgets
+               nltools nilearn nistats datalad[full] nipy duecredit niwidgets
                mne deepdish hypertools ipywidgets pynv six nibabel joblib==0.11" \
   activate=True \
 --copy jtnipyutil /opt/miniconda-latest/envs/py36/lib/python3.6/site-packages/jtnipyutil
